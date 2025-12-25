@@ -668,6 +668,11 @@ body {
     color: #2c3e50;
 }
 
+.chart-card canvas {
+    width: 100% !important;
+    height: 320px !important;
+}
+
 /* 状态标签样式 */
 .status-badge {
     padding: 6px 12px;

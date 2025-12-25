@@ -34,6 +34,9 @@ let editingDiseaseId = null;
 let editingDoctorId = null;
 let editingRegistrationId = null;
 
+let registrationsChartInstance = null;
+let departmentsChartInstance = null;
+
 // 初始化应用
 function initApp() {
     console.log('医院挂号系统前端应用初始化');
@@ -1708,100 +1711,179 @@ async function saveRegistration() {
     }
 }
 
-// 加载报表数据
-function loadReports() {
-    // 初始化图表
-    initRegistrationChart();
-    initDepartmentChart();
+async function loadReports() {
+    try {
+        if (typeof Chart === 'undefined') {
+            return;
+        }
+
+        const indexInfo = await fetchIndexInfo();
+        const now = new Date();
+
+        const doctorsById = Object.fromEntries(indexInfo.doctors.map((d) => [d.id, d]));
+
+        const weekDates = getCurrentWeekDates(now);
+        const weekLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+        const weekCounts = new Array(7).fill(0);
+
+        indexInfo.registrations.forEach((r) => {
+            const date = toSafeDate(r?.registrationDate) || toSafeDate(r?.createdAt) || toSafeDate(r?.visitDate);
+            if (!date) return;
+            for (let i = 0; i < 7; i += 1) {
+                if (isSameLocalDay(date, weekDates[i])) {
+                    weekCounts[i] += 1;
+                    break;
+                }
+            }
+        });
+
+        initRegistrationChart({
+            labels: weekLabels,
+            data: weekCounts,
+            title: '本周挂号数量统计'
+        });
+
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        const deptCounts = new Map();
+        indexInfo.registrations.forEach((r) => {
+            const date = toSafeDate(r?.registrationDate) || toSafeDate(r?.createdAt) || toSafeDate(r?.visitDate);
+            if (!date || date.getTime() < monthStart.getTime()) return;
+
+            const departments = Array.isArray(r?.departments) && r.departments.length
+                ? r.departments
+                : (r?.department ? [r.department] : []);
+
+            const doctorDept = doctorsById[r?.doctorId]?.department;
+            const finalDepartments = departments.length ? departments : (doctorDept ? [doctorDept] : []);
+
+            if (!finalDepartments.length) {
+                deptCounts.set('未知', (deptCounts.get('未知') || 0) + 1);
+                return;
+            }
+
+            finalDepartments.forEach((dept) => {
+                const key = dept || '未知';
+                deptCounts.set(key, (deptCounts.get(key) || 0) + 1);
+            });
+        });
+
+        const sorted = Array.from(deptCounts.entries()).sort((a, b) => b[1] - a[1]);
+        const top = sorted.slice(0, 5);
+        const otherCount = sorted.slice(5).reduce((acc, [, v]) => acc + v, 0);
+        const deptLabels = top.map(([k]) => k);
+        const deptData = top.map(([, v]) => v);
+        if (otherCount > 0) {
+            deptLabels.push('其他');
+            deptData.push(otherCount);
+        }
+        if (deptLabels.length === 0) {
+            DEPARTMENTS.slice(0, 5).forEach((d) => {
+                deptLabels.push(d);
+                deptData.push(0);
+            });
+            deptLabels.push('其他');
+            deptData.push(0);
+        }
+
+        initDepartmentChart({
+            labels: deptLabels,
+            data: deptData,
+            title: '本月科室挂号分布'
+        });
+    } catch (error) {
+        console.error('加载报表数据失败:', error);
+    }
 }
 
-// 初始化挂号统计图表
-function initRegistrationChart() {
-    const ctx = document.getElementById('registrations-chart').getContext('2d');
+function getCurrentWeekDates(now) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const day = d.getDay();
+    const diffToMonday = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - diffToMonday);
+    return new Array(7).fill(0).map((_, i) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + i, 0, 0, 0, 0));
+}
 
-    // 模拟数据
-    const data = {
-        labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-        datasets: [{
-            label: '挂号数量',
-            data: [45, 52, 48, 60, 55, 30, 25],
-            backgroundColor: 'rgba(76, 175, 80, 0.2)',
-            borderColor: 'rgba(76, 175, 80, 1)',
-            borderWidth: 2,
-            tension: 0.4
-        }]
-    };
+function initRegistrationChart({ labels, data, title }) {
+    const canvas = document.getElementById('registrations-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
-    new Chart(ctx, {
+    if (registrationsChartInstance) {
+        registrationsChartInstance.destroy();
+        registrationsChartInstance = null;
+    }
+
+    registrationsChartInstance = new Chart(ctx, {
         type: 'line',
-        data: data,
+        data: {
+            labels,
+            datasets: [{
+                label: '挂号数量',
+                data,
+                backgroundColor: 'rgba(76, 175, 80, 0.18)',
+                borderColor: 'rgba(76, 175, 80, 1)',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                tension: 0.35,
+                fill: true
+            }]
+        },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: '本周挂号数量统计'
-                }
+                legend: { position: 'top' },
+                title: { display: true, text: title }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: '挂号数量'
-                    }
+                    ticks: { precision: 0 },
+                    title: { display: true, text: '挂号数量' }
                 }
             }
         }
     });
 }
 
-// 初始化科室分布图表
-function initDepartmentChart() {
-    const ctx = document.getElementById('departments-chart').getContext('2d');
+function initDepartmentChart({ labels, data, title }) {
+    const canvas = document.getElementById('departments-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
-    // 模拟数据
-    const data = {
-        labels: ['内科', '外科', '儿科', '妇产科', '眼科', '其他'],
-        datasets: [{
-            label: '挂号数量',
-            data: [120, 85, 60, 45, 30, 40],
-            backgroundColor: [
-                'rgba(33, 150, 243, 0.6)',
-                'rgba(76, 175, 80, 0.6)',
-                'rgba(255, 152, 0, 0.6)',
-                'rgba(156, 39, 176, 0.6)',
-                'rgba(244, 67, 54, 0.6)',
-                'rgba(158, 158, 158, 0.6)'
-            ],
-            borderColor: [
-                'rgba(33, 150, 243, 1)',
-                'rgba(76, 175, 80, 1)',
-                'rgba(255, 152, 0, 1)',
-                'rgba(156, 39, 176, 1)',
-                'rgba(244, 67, 54, 1)',
-                'rgba(158, 158, 158, 1)'
-            ],
-            borderWidth: 1
-        }]
-    };
+    if (departmentsChartInstance) {
+        departmentsChartInstance.destroy();
+        departmentsChartInstance = null;
+    }
 
-    new Chart(ctx, {
+    const colors = [
+        'rgba(33, 150, 243, 0.75)',
+        'rgba(76, 175, 80, 0.75)',
+        'rgba(255, 152, 0, 0.75)',
+        'rgba(156, 39, 176, 0.75)',
+        'rgba(244, 67, 54, 0.75)',
+        'rgba(148, 163, 184, 0.75)'
+    ];
+
+    departmentsChartInstance = new Chart(ctx, {
         type: 'doughnut',
-        data: data,
+        data: {
+            labels,
+            datasets: [{
+                label: '挂号数量',
+                data,
+                backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+                borderColor: labels.map((_, i) => colors[i % colors.length].replace('0.75', '1')),
+                borderWidth: 1
+            }]
+        },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    position: 'right',
-                },
-                title: {
-                    display: true,
-                    text: '科室挂号分布'
-                }
+                legend: { position: 'right' },
+                title: { display: true, text: title }
             }
         }
     });
