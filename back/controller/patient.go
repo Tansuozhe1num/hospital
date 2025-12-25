@@ -41,7 +41,7 @@ func CreatePatient(ctx *gin.Context) {
 	}
 
 	if err := resource.PatientService.Create(ctx, &patient); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -61,7 +61,11 @@ func UpdatePatient(ctx *gin.Context) {
 	}
 
 	if err := resource.PatientService.Update(ctx, id, &patient); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if err.Error() == "patient not found" {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

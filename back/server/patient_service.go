@@ -108,6 +108,10 @@ func (s *PatientService) Update(ctx context.Context, id string, updatedPatient *
 		return err
 	}
 
+	if ok, err := checkPatientValidity(updatedPatient); !ok {
+		return err
+	}
+
 	// 小系统，用最笨的办法写的，直接全部取出来遍历一遍，实际系统要是过1e7的话要卡死，，没链接数据库就这么弄了。。
 	found := false
 	for i, patient := range patients {

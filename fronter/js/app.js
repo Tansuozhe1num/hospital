@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // API基础URL
 const API_BASE_URL = '/api';
 const DEPARTMENTS = ['内科', '外科', '儿科', '妇产科', '眼科', '耳鼻喉科', '口腔科', '皮肤科', '中医科', '其他'];
+const ID_CARD_REGEX = /^[1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9xX]$/;
 
 let currentPatients = [];
 let currentDiseases = [];
@@ -140,31 +141,183 @@ function loadPageData(pageId) {
 // 加载首页统计数据
 async function loadDashboardStats() {
     try {
-        // 模拟数据，实际应该从API获取
-        document.getElementById('patient-count').textContent = '1,234';
-        document.getElementById('doctor-count').textContent = '56';
-        document.getElementById('disease-count').textContent = '89';
-        document.getElementById('registration-count').textContent = '45';
-
-        // 实际API调用示例
-        /*
-        const responses = await Promise.all([
-            fetch(`${API_BASE_URL}/patients`),
-            fetch(`${API_BASE_URL}/doctors`),
-            fetch(`${API_BASE_URL}/diseases`),
-            fetch(`${API_BASE_URL}/registrations/today`)
+        const [indexInfo, diseaseCount] = await Promise.all([
+            fetchIndexInfo(),
+            fetchDiseaseCount()
         ]);
 
-        const data = await Promise.all(responses.map(r => r.json()));
+        const patients = indexInfo.patients;
+        const doctors = indexInfo.doctors;
+        const registrations = indexInfo.registrations;
 
-        document.getElementById('patient-count').textContent = data[0].length;
-        document.getElementById('doctor-count').textContent = data[1].length;
-        document.getElementById('disease-count').textContent = data[2].length;
-        document.getElementById('registration-count').textContent = data[3].length;
-        */
+        const now = new Date();
+
+        document.getElementById('patient-count').textContent = patients.length.toLocaleString('zh-CN');
+        document.getElementById('doctor-count').textContent = doctors.length.toLocaleString('zh-CN');
+        document.getElementById('disease-count').textContent = diseaseCount.toLocaleString('zh-CN');
+
+        const todaysRegistrations = registrations.filter((r) => isSameLocalDay(getRegistrationCreatedAt(r), now));
+        document.getElementById('registration-count').textContent = todaysRegistrations.length.toLocaleString('zh-CN');
+
+        const statusCounts = {
+            pending: 0,
+            confirmed: 0,
+            completed: 0,
+            cancelled: 0
+        };
+        todaysRegistrations.forEach((r) => {
+            const k = r?.status;
+            if (k && Object.prototype.hasOwnProperty.call(statusCounts, k)) {
+                statusCounts[k] += 1;
+            }
+        });
+        updateDashboardSummary(statusCounts);
+
+        const updatedAtEl = document.getElementById('dashboard-updated-at');
+        if (updatedAtEl) {
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            updatedAtEl.textContent = `更新于 ${hh}:${mm}`;
+        }
+
+        renderDashboardActivities({ patients, doctors, registrations });
     } catch (error) {
         console.error('加载统计数据失败:', error);
     }
+}
+
+async function fetchIndexInfo() {
+    const response = await fetch('/index/', { method: 'GET' });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || '加载首页概览失败');
+    }
+    const data = await response.json();
+    const info = Array.isArray(data) ? (data[0] || {}) : (data || {});
+    return {
+        patients: Array.isArray(info.patients) ? info.patients : [],
+        doctors: Array.isArray(info.doctors) ? info.doctors : [],
+        registrations: Array.isArray(info.registrations) ? info.registrations : []
+    };
+}
+
+async function fetchDiseaseCount() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/diseases/getDiseases`, { method: 'GET' });
+        if (!response.ok) return 0;
+        const diseases = await response.json();
+        return Array.isArray(diseases) ? diseases.length : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function getRegistrationCreatedAt(r) {
+    const d1 = toSafeDate(r?.registrationDate);
+    if (d1) return d1;
+    const d2 = toSafeDate(r?.createdAt);
+    if (d2) return d2;
+    return toSafeDate(r?.visitDate);
+}
+
+function toSafeDate(value) {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d;
+}
+
+function isSameLocalDay(a, b) {
+    if (!a || !b) return false;
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatRelativeTime(time, now = new Date()) {
+    const d = toSafeDate(time);
+    if (!d) return '';
+    const diffMs = now.getTime() - d.getTime();
+    if (diffMs < 30 * 1000) return '刚刚';
+    if (diffMs < 60 * 60 * 1000) return `${Math.max(1, Math.floor(diffMs / (60 * 1000)))}分钟前`;
+    if (diffMs < 24 * 60 * 60 * 1000) return `${Math.max(1, Math.floor(diffMs / (60 * 60 * 1000)))}小时前`;
+    if (diffMs < 7 * 24 * 60 * 60 * 1000) return `${Math.max(1, Math.floor(diffMs / (24 * 60 * 60 * 1000)))}天前`;
+    return d.toLocaleDateString('zh-CN');
+}
+
+function updateDashboardSummary(statusCounts) {
+    const set = (id, v) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(v ?? 0);
+    };
+    set('summary-pending', statusCounts.pending);
+    set('summary-confirmed', statusCounts.confirmed);
+    set('summary-completed', statusCounts.completed);
+    set('summary-cancelled', statusCounts.cancelled);
+}
+
+function renderDashboardActivities({ patients, doctors, registrations }) {
+    const container = document.getElementById('activity-list');
+    if (!container) return;
+
+    const now = new Date();
+    const patientNameById = Object.fromEntries((patients || []).map((p) => [p.id, p.name]));
+    const doctorById = Object.fromEntries((doctors || []).map((d) => [d.id, d]));
+
+    const items = [];
+
+    (patients || []).forEach((p) => {
+        const time = toSafeDate(p?.createdAt) || toSafeDate(p?.updatedAt);
+        if (!time) return;
+        items.push({
+            time,
+            icon: 'fas fa-user-plus',
+            text: `新病人 <strong>${p.name || '未知'}</strong> 已注册`
+        });
+    });
+
+    (registrations || []).forEach((r) => {
+        const time = getRegistrationCreatedAt(r);
+        if (!time) return;
+
+        const patientName = patientNameById[r.patientId] || '未知';
+        const doctor = doctorById[r.doctorId];
+        const doctorName = doctor?.name || '未知';
+        const departments = Array.isArray(r.departments) && r.departments.length ? r.departments : (r.department ? [r.department] : []);
+        const deptText = departments.length ? departments.join('、') : (doctor?.department || '未知科室');
+
+        items.push({
+            time,
+            icon: 'fas fa-calendar-plus',
+            text: `病人 <strong>${patientName}</strong> 预约了 <strong>${deptText}</strong>（${doctorName}）`
+        });
+    });
+
+    items.sort((a, b) => b.time.getTime() - a.time.getTime());
+
+    const top = items.slice(0, 6);
+    if (top.length === 0) {
+        container.innerHTML = `
+            <div class="activity-item">
+                <div class="activity-icon"><i class="fas fa-clock"></i></div>
+                <div class="activity-content">
+                    <p>暂无最近活动</p>
+                    <span class="activity-time">—</span>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = top.map((it) => `
+        <div class="activity-item">
+            <div class="activity-icon">
+                <i class="${it.icon}"></i>
+            </div>
+            <div class="activity-content">
+                <p>${it.text}</p>
+                <span class="activity-time">${formatRelativeTime(it.time, now)}</span>
+            </div>
+        </div>
+    `).join('');
 }
 
 // 设置搜索功能
@@ -384,9 +537,9 @@ async function savePatient() {
         emergencyPhone: document.getElementById('patient-emergency-phone').value
     };
 
-    // 验证必填字段
-    if (!patient.name || !patient.gender || !patient.age || !patient.phone || !patient.idCard) {
-        alert('请填写所有必填字段！');
+    const validationError = validatePatient(patient);
+    if (validationError) {
+        alert(validationError);
         return;
     }
 
@@ -400,15 +553,14 @@ async function savePatient() {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || '保存失败');
+            throw new Error(await getResponseErrorMessage(response, '保存失败'));
         }
 
         closeModal();
         await loadPatients();
     } catch (error) {
         console.error('保存病人失败:', error);
-        alert('保存失败，请重试！');
+        alert(error?.message || '保存失败，请重试！');
     }
 }
 
@@ -424,8 +576,9 @@ async function updatePatient(id) {
         emergencyPhone: document.getElementById('patient-emergency-phone').value
     };
 
-    if (!patient.name || !patient.gender || !patient.age || !patient.phone || !patient.idCard) {
-        alert('请填写所有必填字段！');
+    const validationError = validatePatient(patient);
+    if (validationError) {
+        alert(validationError);
         return;
     }
 
@@ -439,8 +592,7 @@ async function updatePatient(id) {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || '保存失败');
+            throw new Error(await getResponseErrorMessage(response, '保存失败'));
         }
 
         closeModal();
@@ -448,7 +600,53 @@ async function updatePatient(id) {
         await loadPatients();
     } catch (error) {
         console.error('更新病人失败:', error);
-        alert('保存失败，请重试！');
+        alert(error?.message || '保存失败，请重试！');
+    }
+}
+
+function validatePatient(patient) {
+    const name = (patient?.name ?? '').trim();
+    const gender = (patient?.gender ?? '').trim();
+    const phone = (patient?.phone ?? '').trim();
+    const idCard = (patient?.idCard ?? '').trim();
+    const address = (patient?.address ?? '').trim();
+    const emergencyContact = (patient?.emergencyContact ?? '').trim();
+    const age = Number(patient?.age);
+
+    if (!name) return '请填写姓名';
+    if (gender !== '男' && gender !== '女') return '请选择性别（男/女）';
+    if (!Number.isFinite(age)) return '请输入正确的年龄';
+    if (age < 1 || age > 150) return '年龄必须在 1-150 之间';
+    if (!phone) return '请填写电话';
+    if (!/^\d{11}$/.test(phone)) return '电话必须为 11 位数字';
+    if (!idCard) return '请填写身份证号';
+    if (!ID_CARD_REGEX.test(idCard)) return '身份证号格式不正确（应为 18 位）';
+    if (!address) return '请填写地址';
+    if (!emergencyContact) return '请填写紧急联系人';
+
+    return '';
+}
+
+async function getResponseErrorMessage(response, fallbackMessage) {
+    try {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+            const msg = data?.error || data?.message;
+            if (typeof msg === 'string' && msg.trim()) return msg.trim();
+            return fallbackMessage;
+        }
+        const text = await response.text();
+        if (!text) return fallbackMessage;
+        try {
+            const data = JSON.parse(text);
+            const msg = data?.error || data?.message;
+            if (typeof msg === 'string' && msg.trim()) return msg.trim();
+        } catch {
+        }
+        return text;
+    } catch {
+        return fallbackMessage;
     }
 }
 

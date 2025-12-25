@@ -117,35 +117,31 @@
                     </div>
 
                     <div class="recent-activity">
-                        <h2>最近活动</h2>
-                        <div class="activity-list">
-                            <div class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-user-plus"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <p>新病人 <strong>张三</strong> 已注册</p>
-                                    <span class="activity-time">10分钟前</span>
-                                </div>
+                        <div class="dashboard-section-header">
+                            <h2>今日概况</h2>
+                            <span class="dashboard-updated-at" id="dashboard-updated-at"></span>
+                        </div>
+                        <div class="dashboard-summary" id="dashboard-summary">
+                            <div class="summary-chip summary-pending">
+                                <span class="chip-label">待处理</span>
+                                <span class="chip-value" id="summary-pending">0</span>
                             </div>
-                            <div class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-calendar-plus"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <p>病人 <strong>李四</strong> 预约了内科门诊</p>
-                                    <span class="activity-time">1小时前</span>
-                                </div>
+                            <div class="summary-chip summary-confirmed">
+                                <span class="chip-label">已确认</span>
+                                <span class="chip-value" id="summary-confirmed">0</span>
                             </div>
-                            <div class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-user-md"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <p>新增医生 <strong>王医生</strong> 到外科</p>
-                                    <span class="activity-time">2小时前</span>
-                                </div>
+                            <div class="summary-chip summary-completed">
+                                <span class="chip-label">已完成</span>
+                                <span class="chip-value" id="summary-completed">0</span>
                             </div>
+                            <div class="summary-chip summary-cancelled">
+                                <span class="chip-label">已取消</span>
+                                <span class="chip-value" id="summary-cancelled">0</span>
+                            </div>
+                        </div>
+
+                        <h2 style="margin-top: 22px;">最近活动</h2>
+                        <div class="activity-list" id="activity-list">
                         </div>
                     </div>
                 </div>

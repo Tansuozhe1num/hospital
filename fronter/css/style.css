@@ -284,6 +284,68 @@ body {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
 }
 
+.dashboard-section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.dashboard-updated-at {
+    font-size: 14px;
+    color: #94a3b8;
+}
+
+.dashboard-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.summary-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid #edf2f7;
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+.chip-label {
+    font-size: 14px;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.chip-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.summary-pending {
+    border-color: rgba(251, 191, 36, 0.25);
+    background: linear-gradient(180deg, rgba(251, 191, 36, 0.10), rgba(255, 255, 255, 1));
+}
+
+.summary-confirmed {
+    border-color: rgba(59, 130, 246, 0.25);
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.10), rgba(255, 255, 255, 1));
+}
+
+.summary-completed {
+    border-color: rgba(34, 197, 94, 0.25);
+    background: linear-gradient(180deg, rgba(34, 197, 94, 0.10), rgba(255, 255, 255, 1));
+}
+
+.summary-cancelled {
+    border-color: rgba(239, 68, 68, 0.22);
+    background: linear-gradient(180deg, rgba(239, 68, 68, 0.08), rgba(255, 255, 255, 1));
+}
+
 .recent-activity h2 {
     font-size: 22px;
     margin-bottom: 20px;
@@ -332,6 +394,12 @@ body {
 .activity-time {
     font-size: 14px;
     color: #888;
+}
+
+@media (max-width: 900px) {
+    .dashboard-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 /* 按钮样式 */
