@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧医院挂号系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 侧边栏导航 -->
+        <nav class="sidebar">
+            <div class="logo">
+                <i class="fas fa-hospital"></i>
+                <h2>智慧医院</h2>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item active" data-page="dashboard">
+                    <i class="fas fa-home"></i>
+                    <span>首页概览</span>
+                </li>
+                <li class="nav-item" data-page="patients">
+                    <i class="fas fa-user-injured"></i>
+                    <span>病人管理</span>
+                </li>
+                <li class="nav-item" data-page="diseases">
+                    <i class="fas fa-disease"></i>
+                    <span>病种管理</span>
+                </li>
+                <li class="nav-item" data-page="doctors">
+                    <i class="fas fa-user-md"></i>
+                    <span>医生管理</span>
+                </li>
+                <li class="nav-item" data-page="registrations">
+                    <i class="fas fa-clipboard-list"></i>
+                    <span>挂号管理</span>
+                </li>
+                <li class="nav-item" data-page="reports">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>统计报表</span>
+                </li>
+            </ul>
+            <div class="user-profile">
+                <div class="avatar">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="user-info">
+                    <h4>管理员</h4>
+                    <p>系统管理员</p>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部栏 -->
+            <header class="topbar">
+                <div class="search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="搜索病人、医生或挂号...">
+                </div>
+                <div class="topbar-right">
+                    <button class="btn-notification">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-count">3</span>
+                    </button>
+                    <div class="date-display">
+                        <span id="current-date"></span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 页面内容 -->
+            <div class="content-area">
+                <!-- 首页概览 -->
+                <div id="dashboard" class="page active">
+                    <h1 class="page-title">医院挂号系统概览</h1>
+                    <div class="stats-cards">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background-color: #4CAF50;">
+                                <i class="fas fa-user-injured"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="patient-count">0</h3>
+                                <p>病人总数</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background-color: #2196F3;">
+                                <i class="fas fa-user-md"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="doctor-count">0</h3>
+                                <p>医生总数</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background-color: #FF9800;">
+                                <i class="fas fa-disease"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="disease-count">0</h3>
+                                <p>病种数量</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background-color: #9C27B0;">
+                                <i class="fas fa-clipboard-list"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="registration-count">0</h3>
+                                <p>今日挂号</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="recent-activity">
+                        <h2>最近活动</h2>
+                        <div class="activity-list">
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-user-plus"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <p>新病人 <strong>张三</strong> 已注册</p>
+                                    <span class="activity-time">10分钟前</span>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-calendar-plus"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <p>病人 <strong>李四</strong> 预约了内科门诊</p>
+                                    <span class="activity-time">1小时前</span>
+                                </div>
+                            </div>
+                            <div class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-user-md"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <p>新增医生 <strong>王医生</strong> 到外科</p>
+                                    <span class="activity-time">2小时前</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 病人管理页面 -->
+                <div id="patients" class="page">
+                    <div class="page-header">
+                        <h1 class="page-title">病人管理</h1>
+                        <button class="btn-primary" id="add-patient-btn">
+                            <i class="fas fa-plus"></i> 新增病人
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-toolbar">
+                            <div class="search-filter">
+                                <input type="text" id="patient-search" placeholder="搜索病人...">
+                                <select id="patient-filter">
+                                    <option value="all">全部病人</option>
+                                    <option value="today">今日新增</option>
+                                    <option value="male">男性</option>
+                                    <option value="female">女性</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>姓名</th>
+                                    <th>性别</th>
+                                    <th>年龄</th>
+                                    <th>电话</th>
+                                    <th>身份证号</th>
+                                    <th>地址</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="patient-table-body">
+                                <!-- 病人数据将通过JavaScript动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 病种管理页面 -->
+                <div id="diseases" class="page">
+                    <div class="page-header">
+                        <h1 class="page-title">病种管理</h1>
+                        <button class="btn-primary" id="add-disease-btn">
+                            <i class="fas fa-plus"></i> 新增病种
+                        </button>
+                    </div>
+
+                    <div class="cards-container" id="disease-cards">
+                        <!-- 病种卡片将通过JavaScript动态加载 -->
+                    </div>
+                </div>
+
+                <!-- 医生管理页面 -->
+                <div id="doctors" class="page">
+                    <div class="page-header">
+                        <h1 class="page-title">医生管理</h1>
+                        <button class="btn-primary" id="add-doctor-btn">
+                            <i class="fas fa-plus"></i> 新增医生
+                        </button>
+                    </div>
+
+                    <div class="cards-container" id="doctor-cards">
+                        <!-- 医生卡片将通过JavaScript动态加载 -->
+                    </div>
+                </div>
+
+                <!-- 挂号管理页面 -->
+                <div id="registrations" class="page">
+                    <div class="page-header">
+                        <h1 class="page-title">挂号管理</h1>
+                        <button class="btn-primary" id="add-registration-btn">
+                            <i class="fas fa-plus"></i> 新增挂号
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <div class="table-toolbar">
+                            <div class="filter-options">
+                                <select id="registration-status-filter">
+                                    <option value="all">全部状态</option>
+                                    <option value="pending">待处理</option>
+                                    <option value="confirmed">已确认</option>
+                                    <option value="completed">已完成</option>
+                                    <option value="cancelled">已取消</option>
+                                </select>
+                                <input type="date" id="registration-date-filter">
+                            </div>
+                        </div>
+
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>挂号编号</th>
+                                    <th>病人姓名</th>
+                                    <th>医生姓名</th>
+                                    <th>科室</th>
+                                    <th>就诊时间</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="registration-table-body">
+                                <!-- 挂号数据将通过JavaScript动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 统计报表页面 -->
+                <div id="reports" class="page">
+                    <h1 class="page-title">统计报表</h1>
+                    <div class="charts-container">
+                        <div class="chart-card">
+                            <h3>挂号数量统计</h3>
+                            <canvas id="registrations-chart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>科室分布</h3>
+                            <canvas id="departments-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 模态框容器 -->
+    <div id="modal-container"></div>
+
+    <script src="js/app.js"></script>
+    <script src="js/patients.js"></script>
+    <script src="js/diseases.js"></script>
+    <script src="js/doctors.js"></script>
+    <script src="js/registrations.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>
