@@ -9,6 +9,12 @@ import (
 )
 
 func SetupRoutes(router *gin.Engine) {
+	// 首页展示信息
+	index := router.Group("/index")
+	{
+		index.GET("/", controllers.Index)
+	}
+
 	// 患者管理
 	patientGroup := router.Group("/api/patients")
 	{
@@ -19,37 +25,32 @@ func SetupRoutes(router *gin.Engine) {
 		patientGroup.DELETE("/deletePatient", controllers.DeletePatient)
 	}
 
-	//// 病种管理API
-	//diseaseGroup := router.Group("/api/diseases")
-	//{
-	//	diseaseGroup.GET("/", getDiseases)
-	//	diseaseGroup.GET("/:id", getDisease)
-	//	diseaseGroup.POST("/", createDisease)
-	//	diseaseGroup.PUT("/:id", updateDisease)
-	//	diseaseGroup.DELETE("/:id", deleteDisease)
-	//}
-	//
-	//// 医生管理API
-	//doctorGroup := router.Group("/api/doctors")
-	//{
-	//	doctorGroup.GET("/", getDoctors)
-	//	doctorGroup.GET("/:id", getDoctor)
-	//	doctorGroup.POST("/", createDoctor)
-	//	doctorGroup.PUT("/:id", updateDoctor)
-	//	doctorGroup.DELETE("/:id", deleteDoctor)
-	//	doctorGroup.GET("/:id/diseases", getDoctorDiseases)
-	//}
-	//
-	//// 挂号管理API
-	//registrationGroup := router.Group("/api/registrations")
-	//{
-	//	registrationGroup.GET("/", getRegistrations)
-	//	registrationGroup.GET("/:id", getRegistration)
-	//	registrationGroup.POST("/", createRegistration)
-	//	registrationGroup.PUT("/:id", updateRegistration)
-	//	registrationGroup.DELETE("/:id", deleteRegistration)
-	//	registrationGroup.GET("/patient/:patientId", getPatientRegistrations)
-	//}
+	diseaseGroup := router.Group("/api/diseases")
+	{
+		diseaseGroup.GET("/getDiseases", controllers.GetDiseases)
+		diseaseGroup.GET("/getDisease", controllers.GetDisease)
+		diseaseGroup.POST("/createDisease", controllers.CreateDisease)
+		diseaseGroup.PUT("/updateDisease", controllers.UpdateDisease)
+		diseaseGroup.DELETE("/deleteDisease", controllers.DeleteDisease)
+	}
+
+	doctorGroup := router.Group("/api/doctors")
+	{
+		doctorGroup.GET("/getDoctors", controllers.GetDoctors)
+		doctorGroup.GET("/getDoctor", controllers.GetDoctor)
+		doctorGroup.POST("/createDoctor", controllers.CreateDoctor)
+		doctorGroup.PUT("/updateDoctor", controllers.UpdateDoctor)
+		doctorGroup.DELETE("/deleteDoctor", controllers.DeleteDoctor)
+	}
+
+	registrationGroup := router.Group("/api/registrations")
+	{
+		registrationGroup.GET("/getRegistrations", controllers.GetRegistrations)
+		registrationGroup.GET("/getRegistration", controllers.GetRegistration)
+		registrationGroup.POST("/createRegistration", controllers.CreateRegistration)
+		registrationGroup.PUT("/updateRegistration", controllers.UpdateRegistration)
+		registrationGroup.DELETE("/deleteRegistration", controllers.DeleteRegistration)
+	}
 }
 
 func SetUpFronted(router *gin.Engine) {

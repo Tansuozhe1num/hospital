@@ -20,7 +20,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // API基础URL
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = '/api';
+const DEPARTMENTS = ['内科', '外科', '儿科', '妇产科', '眼科', '耳鼻喉科', '口腔科', '皮肤科', '中医科', '其他'];
+
+let currentPatients = [];
+let currentDiseases = [];
+let currentDoctors = [];
+let currentRegistrations = [];
+
+let editingPatientId = null;
+let editingDiseaseId = null;
+let editingDoctorId = null;
+let editingRegistrationId = null;
 
 // 初始化应用
 function initApp() {
@@ -160,6 +171,9 @@ async function loadDashboardStats() {
 function setupSearch() {
     const searchInput = document.querySelector('.search-bar input');
     const patientSearch = document.getElementById('patient-search');
+    const patientFilter = document.getElementById('patient-filter');
+    const registrationStatusFilter = document.getElementById('registration-status-filter');
+    const registrationDateFilter = document.getElementById('registration-date-filter');
 
     if (searchInput) {
         searchInput.addEventListener('input', function(e) {
@@ -174,6 +188,24 @@ function setupSearch() {
         patientSearch.addEventListener('input', function(e) {
             const query = e.target.value.toLowerCase();
             filterPatients(query);
+        });
+    }
+
+    if (patientFilter) {
+        patientFilter.addEventListener('change', function() {
+            applyPatientsFilterAndRender();
+        });
+    }
+
+    if (registrationStatusFilter) {
+        registrationStatusFilter.addEventListener('change', function() {
+            applyRegistrationFilterAndRender();
+        });
+    }
+
+    if (registrationDateFilter) {
+        registrationDateFilter.addEventListener('change', function() {
+            applyRegistrationFilterAndRender();
         });
     }
 }
@@ -195,6 +227,7 @@ function initModals() {
 
 // 显示添加病人模态框
 function showAddPatientModal() {
+    editingPatientId = null;
     const modalHtml = `
         <div class="modal active" id="add-patient-modal">
             <div class="modal-content">
@@ -270,6 +303,7 @@ function showAddPatientModal() {
 
 // 显示添加病种模态框
 function showAddDiseaseModal() {
+    editingDiseaseId = null;
     const modalHtml = `
         <div class="modal active" id="add-disease-modal">
             <div class="modal-content">
@@ -347,9 +381,7 @@ async function savePatient() {
         idCard: document.getElementById('patient-idcard').value,
         address: document.getElementById('patient-address').value,
         emergencyContact: document.getElementById('patient-emergency-contact').value,
-        emergencyPhone: document.getElementById('patient-emergency-phone').value,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        emergencyPhone: document.getElementById('patient-emergency-phone').value
     };
 
     // 验证必填字段
@@ -359,9 +391,7 @@ async function savePatient() {
     }
 
     try {
-        // 实际API调用
-        /*
-        const response = await fetch(`${API_BASE_URL}/patients`, {
+        const response = await fetch(`${API_BASE_URL}/patients/createPatient`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -369,21 +399,55 @@ async function savePatient() {
             body: JSON.stringify(patient)
         });
 
-        if (response.ok) {
-            closeModal();
-            loadPatients();
-        } else {
-            throw new Error('保存失败');
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '保存失败');
         }
-        */
 
-        // 模拟成功
-        console.log('保存病人:', patient);
         closeModal();
-        loadPatients();
-
+        await loadPatients();
     } catch (error) {
         console.error('保存病人失败:', error);
+        alert('保存失败，请重试！');
+    }
+}
+
+async function updatePatient(id) {
+    const patient = {
+        name: document.getElementById('patient-name').value,
+        gender: document.getElementById('patient-gender').value,
+        age: parseInt(document.getElementById('patient-age').value),
+        phone: document.getElementById('patient-phone').value,
+        idCard: document.getElementById('patient-idcard').value,
+        address: document.getElementById('patient-address').value,
+        emergencyContact: document.getElementById('patient-emergency-contact').value,
+        emergencyPhone: document.getElementById('patient-emergency-phone').value
+    };
+
+    if (!patient.name || !patient.gender || !patient.age || !patient.phone || !patient.idCard) {
+        alert('请填写所有必填字段！');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/patients/updatePatient?id=${encodeURIComponent(id)}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(patient)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '保存失败');
+        }
+
+        closeModal();
+        editingPatientId = null;
+        await loadPatients();
+    } catch (error) {
+        console.error('更新病人失败:', error);
         alert('保存失败，请重试！');
     }
 }
@@ -405,11 +469,27 @@ async function saveDisease() {
     }
 
     try {
-        // 模拟成功
-        console.log('保存病种:', disease);
-        closeModal();
-        loadDiseases();
+        const isEdit = !!editingDiseaseId;
+        const url = isEdit
+            ? `${API_BASE_URL}/diseases/updateDisease?id=${encodeURIComponent(editingDiseaseId)}`
+            : `${API_BASE_URL}/diseases/createDisease`;
 
+        const response = await fetch(url, {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(disease)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '保存失败');
+        }
+
+        closeModal();
+        editingDiseaseId = null;
+        await loadDiseases();
     } catch (error) {
         console.error('保存病种失败:', error);
         alert('保存失败，请重试！');
@@ -419,58 +499,19 @@ async function saveDisease() {
 // 加载病人数据
 async function loadPatients() {
     try {
-        // 模拟数据
-        const mockPatients = [
-            {
-                id: '1',
-                name: '张三',
-                gender: '男',
-                age: 35,
-                phone: '13800138000',
-                idCard: '110101199001011234',
-                address: '北京市朝阳区',
-                emergencyContact: '李四',
-                emergencyPhone: '13800138001',
-                createdAt: '2023-01-15T10:30:00Z',
-                updatedAt: '2023-01-15T10:30:00Z'
-            },
-            {
-                id: '2',
-                name: '王芳',
-                gender: '女',
-                age: 28,
-                phone: '13900139000',
-                idCard: '110101199501011235',
-                address: '上海市浦东新区',
-                emergencyContact: '王明',
-                emergencyPhone: '13900139001',
-                createdAt: '2023-02-20T14:20:00Z',
-                updatedAt: '2023-02-20T14:20:00Z'
-            },
-            {
-                id: '3',
-                name: '李强',
-                gender: '男',
-                age: 45,
-                phone: '13700137000',
-                idCard: '110101197801011236',
-                address: '广州市天河区',
-                emergencyContact: '张红',
-                emergencyPhone: '13700137001',
-                createdAt: '2023-03-10T09:15:00Z',
-                updatedAt: '2023-03-10T09:15:00Z'
-            }
-        ];
+        const response = await fetch(`${API_BASE_URL}/patients/getPatients`, {
+            method: 'GET'
+        });
 
-        // 实际API调用
-        /*
-        const response = await fetch(`${API_BASE_URL}/patients`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '加载失败');
+        }
+
         const patients = await response.json();
-        */
+        currentPatients = Array.isArray(patients) ? patients : [];
 
-        const patients = mockPatients;
-
-        renderPatientsTable(patients);
+        applyPatientsFilterAndRender();
 
     } catch (error) {
         console.error('加载病人数据失败:', error);
@@ -530,36 +571,105 @@ function renderPatientsTable(patients) {
 
 // 过滤病人
 function filterPatients(query) {
-    // 实现搜索过滤逻辑
-    console.log('过滤病人:', query);
+    applyPatientsFilterAndRender(query);
 }
 
 // 编辑病人
 function editPatient(id) {
-    console.log('编辑病人:', id);
-    alert('编辑病人功能开发中...');
+    const patient = currentPatients.find(p => p.id === id);
+    if (!patient) {
+        alert('未找到该病人信息');
+        return;
+    }
+
+    editingPatientId = id;
+
+    const modalHtml = `
+        <div class="modal active" id="edit-patient-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>编辑病人</h2>
+                    <button class="btn-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="patient-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="patient-name">姓名 *</label>
+                                <input type="text" id="patient-name" required value="${patient.name ?? ''}">
+                            </div>
+                            <div class="form-group">
+                                <label for="patient-gender">性别 *</label>
+                                <select id="patient-gender" required>
+                                    <option value="">请选择</option>
+                                    <option value="男" ${patient.gender === '男' ? 'selected' : ''}>男</option>
+                                    <option value="女" ${patient.gender === '女' ? 'selected' : ''}>女</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="patient-age">年龄 *</label>
+                                <input type="number" id="patient-age" min="0" max="120" required value="${patient.age ?? ''}">
+                            </div>
+                            <div class="form-group">
+                                <label for="patient-phone">电话 *</label>
+                                <input type="tel" id="patient-phone" required value="${patient.phone ?? ''}">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="patient-idcard">身份证号 *</label>
+                            <input type="text" id="patient-idcard" required value="${patient.idCard ?? ''}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="patient-address">地址</label>
+                            <input type="text" id="patient-address" value="${patient.address ?? ''}">
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="patient-emergency-contact">紧急联系人</label>
+                                <input type="text" id="patient-emergency-contact" value="${patient.emergencyContact ?? ''}">
+                            </div>
+                            <div class="form-group">
+                                <label for="patient-emergency-phone">紧急联系电话</label>
+                                <input type="tel" id="patient-emergency-phone" value="${patient.emergencyPhone ?? ''}">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" id="cancel-patient-btn">取消</button>
+                    <button class="btn-primary" id="save-patient-btn">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modal-container').innerHTML = modalHtml;
+
+    document.querySelector('#edit-patient-modal .btn-close').addEventListener('click', closeModal);
+    document.getElementById('cancel-patient-btn').addEventListener('click', closeModal);
+    document.getElementById('save-patient-btn').addEventListener('click', () => updatePatient(id));
 }
 
 // 删除病人
 async function deletePatient(id) {
     if (confirm('确定要删除这个病人吗？此操作不可恢复。')) {
         try {
-            // 实际API调用
-            /*
-            const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
+            const response = await fetch(`${API_BASE_URL}/patients/deletePatient?id=${encodeURIComponent(id)}`, {
                 method: 'DELETE'
             });
 
-            if (response.ok) {
-                loadPatients();
-            } else {
-                throw new Error('删除失败');
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || '删除失败');
             }
-            */
 
-           // 模拟成功
-           console.log('删除病人:', id);
-           loadPatients();
+            await loadPatients();
 
         } catch (error) {
             console.error('删除病人失败:', error);
@@ -568,46 +678,38 @@ async function deletePatient(id) {
     }
 }
 
+function applyPatientsFilterAndRender(searchQuery) {
+    const query = (searchQuery ?? document.getElementById('patient-search')?.value ?? '').trim().toLowerCase();
+    const filterValue = document.getElementById('patient-filter')?.value ?? 'all';
+
+    const filtered = currentPatients.filter((p) => {
+        if (filterValue === 'male' && p.gender !== '男') return false;
+        if (filterValue === 'female' && p.gender !== '女') return false;
+
+        if (!query) return true;
+        const haystack = `${p.name ?? ''} ${p.phone ?? ''} ${p.idCard ?? ''} ${p.address ?? ''}`.toLowerCase();
+        return haystack.includes(query);
+    });
+
+    renderPatientsTable(filtered);
+}
+
 // 加载病种数据
 async function loadDiseases() {
     try {
-        // 模拟数据
-        const mockDiseases = [
-            {
-                id: '1',
-                name: '高血压',
-                category: '内科',
-                description: '血压持续升高的一种疾病',
-                symptoms: '头痛、头晕、心悸',
-                treatment: '药物治疗、饮食控制'
-            },
-            {
-                id: '2',
-                name: '糖尿病',
-                category: '内科',
-                description: '血糖调节异常导致的代谢疾病',
-                symptoms: '多饮、多尿、体重下降',
-                treatment: '胰岛素治疗、饮食管理'
-            },
-            {
-                id: '3',
-                name: '急性阑尾炎',
-                category: '外科',
-                description: '阑尾急性炎症',
-                symptoms: '右下腹疼痛、发热',
-                treatment: '手术切除'
-            }
-        ];
+        const response = await fetch(`${API_BASE_URL}/diseases/getDiseases`, {
+            method: 'GET'
+        });
 
-        // 实际API调用
-        /*
-        const response = await fetch(`${API_BASE_URL}/diseases`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '加载失败');
+        }
+
         const diseases = await response.json();
-        */
+        currentDiseases = Array.isArray(diseases) ? diseases : [];
 
-        const diseases = mockDiseases;
-
-        renderDiseasesCards(diseases);
+        renderDiseasesCards(currentDiseases);
 
     } catch (error) {
         console.error('加载病种数据失败:', error);
@@ -673,18 +775,83 @@ function renderDiseasesCards(diseases) {
 
 // 编辑病种
 function editDisease(id) {
-    console.log('编辑病种:', id);
-    alert('编辑病种功能开发中...');
+    const disease = currentDiseases.find(d => d.id === id);
+    if (!disease) {
+        alert('未找到该病种信息');
+        return;
+    }
+
+    editingDiseaseId = id;
+
+    const categories = ['内科', '外科', '儿科', '妇产科', '眼科', '耳鼻喉科', '口腔科', '皮肤科', '中医科'];
+    const categoryOptions = categories.map((c) => `<option value="${c}" ${disease.category === c ? 'selected' : ''}>${c}</option>`).join('');
+
+    const modalHtml = `
+        <div class="modal active" id="edit-disease-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>编辑病种</h2>
+                    <button class="btn-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="disease-form">
+                        <div class="form-group">
+                            <label for="disease-name">病种名称 *</label>
+                            <input type="text" id="disease-name" required value="${disease.name ?? ''}">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="disease-category">分类 *</label>
+                            <select id="disease-category" required>
+                                <option value="">请选择</option>
+                                ${categoryOptions}
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="disease-description">描述</label>
+                            <textarea id="disease-description" rows="3">${disease.description ?? ''}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="disease-symptoms">症状</label>
+                            <textarea id="disease-symptoms" rows="3">${disease.symptoms ?? ''}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="disease-treatment">治疗方法</label>
+                            <textarea id="disease-treatment" rows="3">${disease.treatment ?? ''}</textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" id="cancel-disease-btn">取消</button>
+                    <button class="btn-primary" id="save-disease-btn">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modal-container').innerHTML = modalHtml;
+    document.querySelector('#edit-disease-modal .btn-close').addEventListener('click', closeModal);
+    document.getElementById('cancel-disease-btn').addEventListener('click', closeModal);
+    document.getElementById('save-disease-btn').addEventListener('click', saveDisease);
 }
 
 // 删除病种
 async function deleteDisease(id) {
     if (confirm('确定要删除这个病种吗？此操作不可恢复。')) {
         try {
-            // 模拟成功
-            console.log('删除病种:', id);
-            loadDiseases();
+            const response = await fetch(`${API_BASE_URL}/diseases/deleteDisease?id=${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            });
 
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || '删除失败');
+            }
+
+            await loadDiseases();
         } catch (error) {
             console.error('删除病种失败:', error);
             alert('删除失败，请重试！');
@@ -695,50 +862,23 @@ async function deleteDisease(id) {
 // 加载医生数据
 async function loadDoctors() {
     try {
-        // 模拟数据
-        const mockDoctors = [
-            {
-                id: '1',
-                name: '王医生',
-                department: '内科',
-                title: '主任医师',
-                introduction: '擅长高血压、糖尿病等内科疾病的诊断与治疗',
-                photo: '',
-                diseases: ['1', '2'],
-                maxPatients: 30,
-                fee: 50.00,
-                workSchedule: [
-                    { dayOfWeek: '周一', startTime: '08:30', endTime: '17:00', isAvailable: true },
-                    { dayOfWeek: '周三', startTime: '08:30', endTime: '17:00', isAvailable: true },
-                    { dayOfWeek: '周五', startTime: '08:30', endTime: '17:00', isAvailable: true }
-                ]
-            },
-            {
-                id: '2',
-                name: '李医生',
-                department: '外科',
-                title: '副主任医师',
-                introduction: '擅长普外科手术，包括阑尾炎、胆囊炎等',
-                photo: '',
-                diseases: ['3'],
-                maxPatients: 20,
-                fee: 80.00,
-                workSchedule: [
-                    { dayOfWeek: '周二', startTime: '09:00', endTime: '17:00', isAvailable: true },
-                    { dayOfWeek: '周四', startTime: '09:00', endTime: '17:00', isAvailable: true }
-                ]
-            }
-        ];
+        if (!currentDiseases.length) {
+            await loadDiseases();
+        }
 
-        // 实际API调用
-        /*
-        const response = await fetch(`${API_BASE_URL}/doctors`);
+        const response = await fetch(`${API_BASE_URL}/doctors/getDoctors`, {
+            method: 'GET'
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '加载失败');
+        }
+
         const doctors = await response.json();
-        */
+        currentDoctors = Array.isArray(doctors) ? doctors : [];
 
-        const doctors = mockDoctors;
-
-        renderDoctorsCards(doctors);
+        renderDoctorsCards(currentDoctors);
 
     } catch (error) {
         console.error('加载医生数据失败:', error);
@@ -754,6 +894,7 @@ async function loadDoctors() {
 // 渲染医生卡片
 function renderDoctorsCards(doctors) {
     const container = document.getElementById('doctor-cards');
+    const diseaseNameById = Object.fromEntries(currentDiseases.map(d => [d.id, d.name]));
 
     if (doctors.length === 0) {
         container.innerHTML = `
@@ -769,10 +910,14 @@ function renderDoctorsCards(doctors) {
 
     doctors.forEach(doctor => {
         // 获取工作日信息
-        const workDays = doctor.workSchedule
+        const workDays = (doctor.workSchedule ?? [])
             .filter(schedule => schedule.isAvailable)
             .map(schedule => schedule.dayOfWeek)
             .join('、');
+
+        const diseaseTagsHtml = (doctor.diseases ?? [])
+            .map((diseaseId) => `<span class="disease-tag">${diseaseNameById[diseaseId] || diseaseId}</span>`)
+            .join('');
 
         html += `
             <div class="doctor-card">
@@ -797,8 +942,7 @@ function renderDoctorsCards(doctors) {
                     </div>
                     
                     <div class="disease-tags">
-                        <span class="disease-tag">高血压</span>
-                        <span class="disease-tag">糖尿病</span>
+                        ${diseaseTagsHtml}
                     </div>
                 </div>
                 <div class="doctor-actions">
@@ -818,18 +962,30 @@ function renderDoctorsCards(doctors) {
 
 // 编辑医生
 function editDoctor(id) {
-    console.log('编辑医生:', id);
-    alert('编辑医生功能开发中...');
+    const doctor = currentDoctors.find(d => d.id === id);
+    if (!doctor) {
+        alert('未找到该医生信息');
+        return;
+    }
+
+    editingDoctorId = id;
+    openDoctorModal(doctor);
 }
 
 // 删除医生
 async function deleteDoctor(id) {
     if (confirm('确定要删除这个医生吗？此操作不可恢复。')) {
         try {
-            // 模拟成功
-            console.log('删除医生:', id);
-            loadDoctors();
+            const response = await fetch(`${API_BASE_URL}/doctors/deleteDoctor?id=${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            });
 
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || '删除失败');
+            }
+
+            await loadDoctors();
         } catch (error) {
             console.error('删除医生失败:', error);
             alert('删除失败，请重试！');
@@ -839,64 +995,171 @@ async function deleteDoctor(id) {
 
 // 显示添加医生模态框
 function showAddDoctorModal() {
-    alert('添加医生功能开发中...');
+    editingDoctorId = null;
+    openDoctorModal();
+}
+
+function openDoctorModal(doctor) {
+    const diseasesHtml = currentDiseases.map((d) => {
+        const checked = doctor?.diseases?.includes(d.id) ? 'checked' : '';
+        return `
+            <label style="display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; margin-bottom: 8px;">
+                <input type="checkbox" name="doctor-disease" value="${d.id}" ${checked}>
+                <span>${d.name}</span>
+            </label>
+        `;
+    }).join('');
+
+    const modalHtml = `
+        <div class="modal active" id="doctor-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>${doctor ? '编辑医生' : '新增医生'}</h2>
+                    <button class="btn-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="doctor-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="doctor-name">姓名 *</label>
+                                <input type="text" id="doctor-name" required value="${doctor?.name ?? ''}">
+                            </div>
+                            <div class="form-group">
+                                <label for="doctor-department">科室 *</label>
+                                <select id="doctor-department" required>
+                                    <option value="">请选择</option>
+                                    <option value="内科" ${doctor?.department === '内科' ? 'selected' : ''}>内科</option>
+                                    <option value="外科" ${doctor?.department === '外科' ? 'selected' : ''}>外科</option>
+                                    <option value="儿科" ${doctor?.department === '儿科' ? 'selected' : ''}>儿科</option>
+                                    <option value="妇产科" ${doctor?.department === '妇产科' ? 'selected' : ''}>妇产科</option>
+                                    <option value="眼科" ${doctor?.department === '眼科' ? 'selected' : ''}>眼科</option>
+                                    <option value="耳鼻喉科" ${doctor?.department === '耳鼻喉科' ? 'selected' : ''}>耳鼻喉科</option>
+                                    <option value="口腔科" ${doctor?.department === '口腔科' ? 'selected' : ''}>口腔科</option>
+                                    <option value="皮肤科" ${doctor?.department === '皮肤科' ? 'selected' : ''}>皮肤科</option>
+                                    <option value="中医科" ${doctor?.department === '中医科' ? 'selected' : ''}>中医科</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="doctor-title">职称 *</label>
+                                <input type="text" id="doctor-title" required value="${doctor?.title ?? ''}">
+                            </div>
+                            <div class="form-group">
+                                <label for="doctor-maxPatients">每日限额</label>
+                                <input type="number" id="doctor-maxPatients" min="1" max="200" value="${doctor?.maxPatients ?? 30}">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 1;">
+                                <label for="doctor-fee">挂号费</label>
+                                <input type="number" id="doctor-fee" min="0" step="0.01" value="${doctor?.fee ?? 0}">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="doctor-introduction">简介</label>
+                            <textarea id="doctor-introduction" rows="3">${doctor?.introduction ?? ''}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>管理病种（1-3个） *</label>
+                            <div id="doctor-diseases" style="display: flex; flex-wrap: wrap;">
+                                ${diseasesHtml}
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" id="cancel-doctor-btn">取消</button>
+                    <button class="btn-primary" id="save-doctor-btn">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modal-container').innerHTML = modalHtml;
+    document.querySelector('#doctor-modal .btn-close').addEventListener('click', closeModal);
+    document.getElementById('cancel-doctor-btn').addEventListener('click', closeModal);
+    document.getElementById('save-doctor-btn').addEventListener('click', saveDoctor);
+}
+
+async function saveDoctor() {
+    const selectedDiseaseIds = Array.from(document.querySelectorAll('input[name="doctor-disease"]:checked')).map((el) => el.value);
+    if (selectedDiseaseIds.length < 1 || selectedDiseaseIds.length > 3) {
+        alert('请选择1-3个病种');
+        return;
+    }
+
+    const doctor = {
+        name: document.getElementById('doctor-name').value,
+        department: document.getElementById('doctor-department').value,
+        title: document.getElementById('doctor-title').value,
+        introduction: document.getElementById('doctor-introduction').value,
+        photo: '',
+        diseases: selectedDiseaseIds,
+        maxPatients: parseInt(document.getElementById('doctor-maxPatients').value || '30', 10),
+        fee: parseFloat(document.getElementById('doctor-fee').value || '0'),
+        workSchedule: []
+    };
+
+    if (!doctor.name || !doctor.department || !doctor.title) {
+        alert('请填写所有必填字段！');
+        return;
+    }
+
+    try {
+        const isEdit = !!editingDoctorId;
+        const url = isEdit
+            ? `${API_BASE_URL}/doctors/updateDoctor?id=${encodeURIComponent(editingDoctorId)}`
+            : `${API_BASE_URL}/doctors/createDoctor`;
+
+        const response = await fetch(url, {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(doctor)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '保存失败');
+        }
+
+        closeModal();
+        editingDoctorId = null;
+        await loadDoctors();
+    } catch (error) {
+        console.error('保存医生失败:', error);
+        alert('保存失败，请重试！');
+    }
 }
 
 // 加载挂号数据
 async function loadRegistrations() {
     try {
-        // 模拟数据
-        const mockRegistrations = [
-            {
-                id: 'R001',
-                patientId: '1',
-                doctorId: '1',
-                department: '内科',
-                registrationDate: '2023-10-15T09:30:00Z',
-                visitDate: '2023-10-16T14:30:00Z',
-                timeSlot: '14:30-15:00',
-                status: 'confirmed',
-                symptoms: '头痛、头晕',
-                notes: '高血压复诊',
-                createdAt: '2023-10-15T09:30:00Z'
-            },
-            {
-                id: 'R002',
-                patientId: '2',
-                doctorId: '2',
-                department: '外科',
-                registrationDate: '2023-10-16T10:15:00Z',
-                visitDate: '2023-10-17T10:00:00Z',
-                timeSlot: '10:00-10:30',
-                status: 'pending',
-                symptoms: '右下腹疼痛',
-                notes: '疑似阑尾炎',
-                createdAt: '2023-10-16T10:15:00Z'
-            },
-            {
-                id: 'R003',
-                patientId: '3',
-                doctorId: '1',
-                department: '内科',
-                registrationDate: '2023-10-14T14:20:00Z',
-                visitDate: '2023-10-15T09:00:00Z',
-                timeSlot: '09:00-09:30',
-                status: 'completed',
-                symptoms: '多饮、多尿',
-                notes: '糖尿病检查',
-                createdAt: '2023-10-14T14:20:00Z'
-            }
-        ];
+        if (!currentPatients.length) {
+            await loadPatients();
+        }
+        if (!currentDoctors.length) {
+            await loadDoctors();
+        }
 
-        // 实际API调用
-        /*
-        const response = await fetch(`${API_BASE_URL}/registrations`);
+        const response = await fetch(`${API_BASE_URL}/registrations/getRegistrations`, {
+            method: 'GET'
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '加载失败');
+        }
+
         const registrations = await response.json();
-        */
-
-        const registrations = mockRegistrations;
-
-        renderRegistrationsTable(registrations);
+        currentRegistrations = Array.isArray(registrations) ? registrations : [];
+        applyRegistrationFilterAndRender();
 
     } catch (error) {
         console.error('加载挂号数据失败:', error);
@@ -909,6 +1172,23 @@ async function loadRegistrations() {
             </tr>
         `;
     }
+}
+
+function applyRegistrationFilterAndRender() {
+    const status = document.getElementById('registration-status-filter')?.value ?? 'all';
+    const dateStr = document.getElementById('registration-date-filter')?.value ?? '';
+    const targetDate = dateStr ? new Date(`${dateStr}T00:00:00`).toISOString().slice(0, 10) : '';
+
+    const filtered = currentRegistrations.filter((r) => {
+        if (status !== 'all' && r.status !== status) return false;
+        if (!targetDate) return true;
+        const visitDate = new Date(r.visitDate);
+        if (Number.isNaN(visitDate.getTime())) return false;
+        const visitIso = visitDate.toISOString().slice(0, 10);
+        return visitIso === targetDate;
+    });
+
+    renderRegistrationsTable(filtered);
 }
 
 // 渲染挂号表格
@@ -927,17 +1207,8 @@ function renderRegistrationsTable(registrations) {
         return;
     }
 
-    // 模拟病人和医生数据
-    const patientNames = {
-        '1': '张三',
-        '2': '王芳',
-        '3': '李强'
-    };
-
-    const doctorNames = {
-        '1': '王医生',
-        '2': '李医生'
-    };
+    const patientNames = Object.fromEntries(currentPatients.map(p => [p.id, p.name]));
+    const doctorNames = Object.fromEntries(currentDoctors.map(d => [d.id, d.name]));
 
     let html = '';
 
@@ -953,14 +1224,18 @@ function renderRegistrationsTable(registrations) {
 
         // 格式化日期
         const visitDate = new Date(registration.visitDate);
-        const formattedDate = visitDate.toLocaleDateString('zh-CN');
+        const formattedDate = Number.isNaN(visitDate.getTime()) ? '' : visitDate.toLocaleDateString('zh-CN');
+        const departments = Array.isArray(registration.departments) && registration.departments.length
+            ? registration.departments
+            : (registration.department ? [registration.department] : []);
+        const departmentText = departments.join('、');
 
         html += `
             <tr>
                 <td>${registration.id}</td>
                 <td>${patientNames[registration.patientId] || '未知'}</td>
                 <td>${doctorNames[registration.doctorId] || '未知'}</td>
-                <td>${registration.department}</td>
+                <td>${departmentText}</td>
                 <td>${formattedDate} ${registration.timeSlot}</td>
                 <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 <td>
@@ -980,18 +1255,30 @@ function renderRegistrationsTable(registrations) {
 
 // 编辑挂号
 function editRegistration(id) {
-    console.log('编辑挂号:', id);
-    alert('编辑挂号功能开发中...');
+    const registration = currentRegistrations.find(r => r.id === id);
+    if (!registration) {
+        alert('未找到该挂号信息');
+        return;
+    }
+
+    editingRegistrationId = id;
+    openRegistrationModal(registration);
 }
 
 // 删除挂号
 async function deleteRegistration(id) {
     if (confirm('确定要删除这个挂号记录吗？此操作不可恢复。')) {
         try {
-            // 模拟成功
-            console.log('删除挂号:', id);
-            loadRegistrations();
+            const response = await fetch(`${API_BASE_URL}/registrations/deleteRegistration?id=${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            });
 
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || '删除失败');
+            }
+
+            await loadRegistrations();
         } catch (error) {
             console.error('删除挂号失败:', error);
             alert('删除失败，请重试！');
@@ -1001,7 +1288,226 @@ async function deleteRegistration(id) {
 
 // 显示添加挂号模态框
 function showAddRegistrationModal() {
-    alert('添加挂号功能开发中...');
+    editingRegistrationId = null;
+    openRegistrationModal();
+}
+
+async function openRegistrationModal(registration) {
+    if (!currentPatients.length) {
+        await loadPatients();
+    }
+    if (!currentDoctors.length) {
+        await loadDoctors();
+    }
+
+    const patientOptions = currentPatients
+        .map((p) => `<option value="${p.id}" ${registration?.patientId === p.id ? 'selected' : ''}>${p.name}</option>`)
+        .join('');
+
+    const doctorOptions = currentDoctors
+        .map((d) => `<option value="${d.id}" ${registration?.doctorId === d.id ? 'selected' : ''}>${d.name}（${d.department}）</option>`)
+        .join('');
+
+    const visitDateValue = registration?.visitDate ? new Date(registration.visitDate).toISOString().slice(0, 10) : '';
+    const selectedDepartments = Array.isArray(registration?.departments) && registration.departments.length
+        ? registration.departments
+        : (registration?.department ? [registration.department] : []);
+    const departmentsHtml = DEPARTMENTS.map((dept) => {
+        const checked = selectedDepartments.includes(dept) ? 'checked' : '';
+        return `
+            <label style="display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; margin-bottom: 8px;">
+                <input type="checkbox" name="registration-department" value="${dept}" ${checked}>
+                <span>${dept}</span>
+            </label>
+        `;
+    }).join('');
+
+    const modalHtml = `
+        <div class="modal active" id="registration-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>${registration ? '编辑挂号' : '新增挂号'}</h2>
+                    <button class="btn-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="registration-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="registration-patient">病人 *</label>
+                                <select id="registration-patient" required>
+                                    <option value="">请选择</option>
+                                    ${patientOptions}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="registration-doctor">医生 *</label>
+                                <select id="registration-doctor" required>
+                                    <option value="">请选择</option>
+                                    ${doctorOptions}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="registration-status">状态</label>
+                                <select id="registration-status">
+                                    <option value="pending" ${registration?.status === 'pending' ? 'selected' : ''}>待处理</option>
+                                    <option value="confirmed" ${registration?.status === 'confirmed' ? 'selected' : ''}>已确认</option>
+                                    <option value="completed" ${registration?.status === 'completed' ? 'selected' : ''}>已完成</option>
+                                    <option value="cancelled" ${registration?.status === 'cancelled' ? 'selected' : ''}>已取消</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>科室（1-n个） *</label>
+                            <div id="registration-departments" style="display: flex; flex-wrap: wrap;">
+                                ${departmentsHtml}
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="registration-visitDate">就诊日期 *</label>
+                                <input type="date" id="registration-visitDate" required value="${visitDateValue}">
+                            </div>
+                            <div class="form-group">
+                                <label for="registration-timeSlot">时间段 *</label>
+                                <input type="text" id="registration-timeSlot" required placeholder="例如 09:00-09:30" value="${registration?.timeSlot ?? ''}">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="registration-symptoms">症状</label>
+                            <textarea id="registration-symptoms" rows="2">${registration?.symptoms ?? ''}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="registration-notes">备注</label>
+                            <textarea id="registration-notes" rows="2">${registration?.notes ?? ''}</textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" id="cancel-registration-btn">取消</button>
+                    <button class="btn-primary" id="save-registration-btn">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modal-container').innerHTML = modalHtml;
+    document.querySelector('#registration-modal .btn-close').addEventListener('click', closeModal);
+    document.getElementById('cancel-registration-btn').addEventListener('click', closeModal);
+    document.getElementById('save-registration-btn').addEventListener('click', saveRegistration);
+
+    const doctorSelect = document.getElementById('registration-doctor');
+    const upsertAndCheckDepartment = (dept) => {
+        if (!dept) return;
+        const existing = Array.from(document.querySelectorAll('input[name="registration-department"]'))
+            .find((el) => el.value === dept);
+        if (existing) {
+            existing.checked = true;
+            return;
+        }
+        const container = document.getElementById('registration-departments');
+        if (!container) return;
+        const label = document.createElement('label');
+        label.style.display = 'inline-flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '6px';
+        label.style.marginRight = '12px';
+        label.style.marginBottom = '8px';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.name = 'registration-department';
+        input.value = dept;
+        input.checked = true;
+        const span = document.createElement('span');
+        span.textContent = dept;
+        label.appendChild(input);
+        label.appendChild(span);
+        container.appendChild(label);
+    };
+
+    const ensureDepartmentSelection = () => {
+        const checked = document.querySelectorAll('input[name="registration-department"]:checked');
+        if (checked.length) return;
+        const doctor = currentDoctors.find((d) => d.id === doctorSelect?.value);
+        if (doctor?.department) {
+            upsertAndCheckDepartment(doctor.department);
+        }
+    };
+
+    doctorSelect?.addEventListener('change', ensureDepartmentSelection);
+    ensureDepartmentSelection();
+}
+
+async function saveRegistration() {
+    const patientId = document.getElementById('registration-patient').value;
+    const doctorId = document.getElementById('registration-doctor').value;
+    const departments = Array.from(document.querySelectorAll('input[name="registration-department"]:checked'))
+        .map((el) => el.value);
+    const status = document.getElementById('registration-status').value;
+    const visitDateInput = document.getElementById('registration-visitDate').value;
+    const timeSlot = document.getElementById('registration-timeSlot').value;
+    const symptoms = document.getElementById('registration-symptoms').value;
+    const notes = document.getElementById('registration-notes').value;
+
+    if (!patientId || !doctorId || !visitDateInput || !timeSlot) {
+        alert('请填写所有必填字段！');
+        return;
+    }
+    if (departments.length < 1) {
+        alert('请选择至少1个科室！');
+        return;
+    }
+
+    const visitDate = new Date(`${visitDateInput}T00:00:00`);
+    if (Number.isNaN(visitDate.getTime())) {
+        alert('就诊日期格式不正确');
+        return;
+    }
+
+    const payload = {
+        patientId,
+        doctorId,
+        department: departments[0],
+        departments,
+        visitDate: visitDate.toISOString(),
+        timeSlot,
+        status,
+        symptoms,
+        notes
+    };
+
+    try {
+        const isEdit = !!editingRegistrationId;
+        const url = isEdit
+            ? `${API_BASE_URL}/registrations/updateRegistration?id=${encodeURIComponent(editingRegistrationId)}`
+            : `${API_BASE_URL}/registrations/createRegistration`;
+
+        const response = await fetch(url, {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '保存失败');
+        }
+
+        closeModal();
+        editingRegistrationId = null;
+        await loadRegistrations();
+    } catch (error) {
+        console.error('保存挂号失败:', error);
+        alert('保存失败，请重试！');
+    }
 }
 
 // 加载报表数据

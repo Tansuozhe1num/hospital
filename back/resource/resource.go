@@ -12,5 +12,9 @@ var (
 	Diseases      = []models.Disease{}
 )
 
-// PatientService 病人管理的单例
-var PatientService *services.PatientService
+var (
+	PatientService      *services.PatientService
+	DiseaseService      *services.DiseaseService
+	DoctorService       *services.DoctorService
+	RegistrationService *services.RegistrationService
+)

@@ -7,6 +7,7 @@ type Registration struct {
 	PatientID        string    `json:"patientId"`
 	DoctorID         string    `json:"doctorId"`
 	Department       string    `json:"department"` // 科室
+	Departments      []string  `json:"departments,omitempty"`
 	RegistrationDate time.Time `json:"registrationDate"`
 	VisitDate        time.Time `json:"visitDate"`
 	TimeSlot         string    `json:"timeSlot"` // 时间段

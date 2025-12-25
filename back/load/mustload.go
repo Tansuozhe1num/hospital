@@ -9,6 +9,9 @@ import (
 
 func Load(ctx context.Context) {
 	resource.PatientService = services.InitPatientService(resource.PatientService)
+	resource.DiseaseService = services.InitDiseaseService(resource.DiseaseService)
+	resource.DoctorService = services.InitDoctorService(resource.DoctorService)
+	resource.RegistrationService = services.InitRegistrationService(resource.RegistrationService)
 
 	initStorage(ctx)
 }
