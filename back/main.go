@@ -6,6 +6,7 @@ import (
 	"hospital-system/load"
 	"hospital-system/server/httpserver"
 	"log"
+	"os"
 )
 
 func main() {
@@ -18,9 +19,14 @@ func main() {
 
 	httpserver.SetupRoutes(router)
 	httpserver.SetUpFronted(router)
-	
-	log.Println("医院挂号系统后端服务启动在 http://localhost:8080")
-	if err := router.Run(":8080"); err != nil {
+
+	log.Println("医院挂号系统后端服务启动")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	if err := router.Run(":" + port); err != nil {
 		log.Fatal("服务器启动失败:", err)
 	}
 }
