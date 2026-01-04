@@ -1,21 +1,11 @@
 // 医院挂号系统主应用
-document.addEventListener('DOMContentLoaded', function() {
-    // 初始化
+document.addEventListener('DOMContentLoaded', async function() {
+    initAuthBindings();
+    await initSession();
     initApp();
-
-    // 设置当前日期
     setCurrentDate();
-
-    // 绑定导航点击事件
     setupNavigation();
-
-    // 加载首页统计数据
-    loadDashboardStats();
-
-    // 设置搜索功能
     setupSearch();
-
-    // 初始化模态框
     initModals();
 });
 
@@ -23,11 +13,17 @@ document.addEventListener('DOMContentLoaded', function() {
 const API_BASE_URL = '/api';
 const DEPARTMENTS = ['内科', '外科', '儿科', '妇产科', '眼科', '耳鼻喉科', '口腔科', '皮肤科', '中医科', '其他'];
 const ID_CARD_REGEX = /^[1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9xX]$/;
+const AUTH_TOKEN_STORAGE_KEY = 'hospital-auth-token';
 
 let currentPatients = [];
 let currentDiseases = [];
 let currentDoctors = [];
 let currentRegistrations = [];
+
+let currentSession = {
+    token: '',
+    me: null
+};
 
 let editingPatientId = null;
 let editingDiseaseId = null;
@@ -43,18 +39,266 @@ function initApp() {
 
     // 设置默认页面
     if (!window.location.hash) {
-        window.location.hash = '#dashboard';
+        window.location.hash = currentSession.me ? `#${getDefaultPageForRole(getCurrentRole())}` : '#login';
     }
 
     // 监听hash变化
     window.addEventListener('hashchange', function() {
-        const page = window.location.hash.substring(1) || 'dashboard';
+        const page = window.location.hash.substring(1) || (currentSession.me ? getDefaultPageForRole(getCurrentRole()) : 'login');
         showPage(page);
     });
 
     // 初始显示页面
-    const initialPage = window.location.hash.substring(1) || 'dashboard';
+    const initialPage = window.location.hash.substring(1) || (currentSession.me ? getDefaultPageForRole(getCurrentRole()) : 'login');
     showPage(initialPage);
+}
+
+function initAuthBindings() {
+    const loginForm = document.getElementById('login-form');
+    loginForm?.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        await handleLoginSubmit();
+    });
+
+    document.getElementById('logout-btn')?.addEventListener('click', function() {
+        logout();
+    });
+}
+
+async function initSession() {
+    const token = getAuthToken();
+    if (!token) {
+        setUnauthenticatedUI();
+        return;
+    }
+
+    currentSession.token = token;
+    const me = await fetchMe();
+    if (!me) {
+        logout();
+        return;
+    }
+
+    currentSession.me = me;
+    setAuthenticatedUI();
+}
+
+async function handleLoginSubmit() {
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const submitBtn = document.getElementById('login-submit');
+    const errorBox = document.getElementById('login-error');
+
+    const username = (usernameInput?.value ?? '').trim();
+    const password = (passwordInput?.value ?? '').trim();
+
+    if (errorBox) errorBox.textContent = '';
+    if (!username || !password) {
+        if (errorBox) errorBox.textContent = '请输入账号和密码';
+        return;
+    }
+
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await safeParseJson(response);
+        if (!response.ok) {
+            const message = data?.error || '登录失败';
+            if (errorBox) errorBox.textContent = message;
+            return;
+        }
+
+        const token = data?.token;
+        if (!token) {
+            if (errorBox) errorBox.textContent = '登录失败';
+            return;
+        }
+
+        setAuthToken(token);
+        currentSession.token = token;
+        const me = await fetchMe();
+        if (!me) {
+            if (errorBox) errorBox.textContent = '登录失败';
+            logout();
+            return;
+        }
+
+        currentSession.me = me;
+        setAuthenticatedUI();
+        const defaultPage = getDefaultPageForRole(getCurrentRole());
+        window.location.hash = `#${defaultPage}`;
+        showPage(defaultPage);
+    } catch (error) {
+        console.error('登录失败:', error);
+        if (errorBox) errorBox.textContent = '登录失败';
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
+async function fetchMe() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${currentSession.token}`
+            }
+        });
+        const data = await safeParseJson(response);
+        if (!response.ok) return null;
+        if (!data?.id || !data?.role) return null;
+        return data;
+    } catch {
+        return null;
+    }
+}
+
+function logout() {
+    clearAuthToken();
+    currentSession = { token: '', me: null };
+    setUnauthenticatedUI();
+    window.location.hash = '#login';
+    showPage('login');
+}
+
+function setAuthenticatedUI() {
+    document.body.classList.remove('auth-unauthenticated');
+    updateUserProfileUI();
+    applyRoleUI();
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+}
+
+function setUnauthenticatedUI() {
+    document.body.classList.add('auth-unauthenticated');
+    const nameEl = document.getElementById('sidebar-user-name');
+    const roleEl = document.getElementById('sidebar-user-role');
+    if (nameEl) nameEl.textContent = '未登录';
+    if (roleEl) roleEl.textContent = '请先登录';
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) logoutBtn.style.display = 'none';
+}
+
+function updateUserProfileUI() {
+    const nameEl = document.getElementById('sidebar-user-name');
+    const roleEl = document.getElementById('sidebar-user-role');
+    if (nameEl) nameEl.textContent = currentSession.me?.username || currentSession.me?.id || '已登录';
+    if (roleEl) roleEl.textContent = roleLabel(currentSession.me?.role);
+}
+
+function applyRoleUI() {
+    const role = getCurrentRole();
+    const allowedPages = getAllowedPagesForRole(role);
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach((item) => {
+        const page = item.getAttribute('data-page');
+        item.style.display = allowedPages.includes(page) ? '' : 'none';
+    });
+
+    setElementVisible('add-patient-btn', role === 'admin');
+    setElementVisible('add-disease-btn', role === 'admin');
+    setElementVisible('add-doctor-btn', role === 'admin');
+    setElementVisible('add-registration-btn', role === 'admin' || role === 'patient');
+}
+
+function setElementVisible(id, isVisible) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = isVisible ? '' : 'none';
+}
+
+function roleLabel(role) {
+    switch (role) {
+        case 'admin':
+            return '管理员';
+        case 'doctor':
+            return '医生';
+        case 'patient':
+            return '病人';
+        default:
+            return '未知';
+    }
+}
+
+function getCurrentRole() {
+    return currentSession.me?.role || null;
+}
+
+function getAllowedPagesForRole(role) {
+    switch (role) {
+        case 'admin':
+            return ['dashboard', 'patients', 'diseases', 'doctors', 'registrations', 'reports'];
+        case 'doctor':
+            return ['diseases', 'registrations'];
+        case 'patient':
+            return ['registrations'];
+        default:
+            return [];
+    }
+}
+
+function getDefaultPageForRole(role) {
+    const allowed = getAllowedPagesForRole(role);
+    return allowed[0] || 'login';
+}
+
+function canManagePatients() {
+    return getCurrentRole() === 'admin';
+}
+
+function canManageDiseases() {
+    return getCurrentRole() === 'admin';
+}
+
+function canManageDoctors() {
+    return getCurrentRole() === 'admin';
+}
+
+function canCreateRegistration() {
+    const role = getCurrentRole();
+    return role === 'admin' || role === 'patient';
+}
+
+function canEditRegistration() {
+    const role = getCurrentRole();
+    return role === 'admin' || role === 'doctor';
+}
+
+function canDeleteRegistration() {
+    return getCurrentRole() === 'admin';
+}
+
+function safeParseJson(response) {
+    return response
+        .json()
+        .catch(() => null);
+}
+
+function getAuthToken() {
+    return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || '';
+}
+
+function setAuthToken(token) {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+}
+
+function clearAuthToken() {
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+}
+
+function apiFetch(url, options = {}) {
+    const headers = new Headers(options.headers || {});
+    if (currentSession.token) {
+        headers.set('Authorization', `Bearer ${currentSession.token}`);
+    }
+    return fetch(url, { ...options, headers });
 }
 
 // 设置当前日期
@@ -91,6 +335,20 @@ function setupNavigation() {
 
 // 显示页面
 function showPage(pageId) {
+    const defaultPage = currentSession.me ? getDefaultPageForRole(getCurrentRole()) : 'login';
+    if (!currentSession.me && pageId !== 'login') {
+        window.location.hash = '#login';
+        pageId = 'login';
+    }
+    if (currentSession.me && pageId === 'login') {
+        window.location.hash = `#${defaultPage}`;
+        pageId = defaultPage;
+    }
+    if (currentSession.me && !isPageAllowed(pageId)) {
+        window.location.hash = `#${defaultPage}`;
+        pageId = defaultPage;
+    }
+
     // 隐藏所有页面
     const pages = document.querySelectorAll('.page');
     pages.forEach(page => {
@@ -113,8 +371,16 @@ function showPage(pageId) {
         });
 
         // 加载页面数据
-        loadPageData(pageId);
+        if (pageId !== 'login') {
+            loadPageData(pageId);
+        }
     }
+}
+
+function isPageAllowed(pageId) {
+    if (pageId === 'login') return true;
+    if (!currentSession.me) return false;
+    return getAllowedPagesForRole(getCurrentRole()).includes(pageId);
 }
 
 // 加载页面数据
@@ -190,7 +456,7 @@ async function loadDashboardStats() {
 }
 
 async function fetchIndexInfo() {
-    const response = await fetch('/index/', { method: 'GET' });
+    const response = await apiFetch('/index/', { method: 'GET' });
     if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText || '加载首页概览失败');
@@ -206,7 +472,7 @@ async function fetchIndexInfo() {
 
 async function fetchDiseaseCount() {
     try {
-        const response = await fetch(`${API_BASE_URL}/diseases/getDiseases`, { method: 'GET' });
+        const response = await apiFetch(`${API_BASE_URL}/diseases/getDiseases`, { method: 'GET' });
         if (!response.ok) return 0;
         const diseases = await response.json();
         return Array.isArray(diseases) ? diseases.length : 0;
@@ -383,6 +649,10 @@ function initModals() {
 
 // 显示添加病人模态框
 function showAddPatientModal() {
+    if (!canManagePatients()) {
+        alert('无权限');
+        return;
+    }
     editingPatientId = null;
     const modalHtml = `
         <div class="modal active" id="add-patient-modal">
@@ -459,6 +729,10 @@ function showAddPatientModal() {
 
 // 显示添加病种模态框
 function showAddDiseaseModal() {
+    if (!canManageDiseases()) {
+        alert('无权限');
+        return;
+    }
     editingDiseaseId = null;
     const modalHtml = `
         <div class="modal active" id="add-disease-modal">
@@ -529,6 +803,10 @@ function closeModal() {
 
 // 保存病人
 async function savePatient() {
+    if (!canManagePatients()) {
+        alert('无权限');
+        return;
+    }
     const patient = {
         name: document.getElementById('patient-name').value,
         gender: document.getElementById('patient-gender').value,
@@ -547,7 +825,7 @@ async function savePatient() {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/patients/createPatient`, {
+        const response = await apiFetch(`${API_BASE_URL}/patients/createPatient`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -568,6 +846,10 @@ async function savePatient() {
 }
 
 async function updatePatient(id) {
+    if (!canManagePatients()) {
+        alert('无权限');
+        return;
+    }
     const patient = {
         name: document.getElementById('patient-name').value,
         gender: document.getElementById('patient-gender').value,
@@ -586,7 +868,7 @@ async function updatePatient(id) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/patients/updatePatient?id=${encodeURIComponent(id)}`, {
+        const response = await apiFetch(`${API_BASE_URL}/patients/updatePatient?id=${encodeURIComponent(id)}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -655,6 +937,10 @@ async function getResponseErrorMessage(response, fallbackMessage) {
 
 // 保存病种
 async function saveDisease() {
+    if (!canManageDiseases()) {
+        alert('无权限');
+        return;
+    }
     const disease = {
         name: document.getElementById('disease-name').value,
         category: document.getElementById('disease-category').value,
@@ -675,7 +961,7 @@ async function saveDisease() {
             ? `${API_BASE_URL}/diseases/updateDisease?id=${encodeURIComponent(editingDiseaseId)}`
             : `${API_BASE_URL}/diseases/createDisease`;
 
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method: isEdit ? 'PUT' : 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -700,7 +986,7 @@ async function saveDisease() {
 // 加载病人数据
 async function loadPatients() {
     try {
-        const response = await fetch(`${API_BASE_URL}/patients/getPatients`, {
+        const response = await apiFetch(`${API_BASE_URL}/patients/getPatients`, {
             method: 'GET'
         });
 
@@ -746,6 +1032,17 @@ function renderPatientsTable(patients) {
     let html = '';
 
     patients.forEach(patient => {
+        const actionsHtml = canManagePatients()
+            ? `
+                    <button class="btn-action btn-edit" onclick="editPatient('${patient.id}')">
+                        <i class="fas fa-edit"></i> 编辑
+                    </button>
+                    <button class="btn-action btn-delete" onclick="deletePatient('${patient.id}')">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
+            `
+            : '<span style="color: #94a3b8;">无权限</span>';
+
         html += `
             <tr>
                 <td>${patient.id}</td>
@@ -756,12 +1053,7 @@ function renderPatientsTable(patients) {
                 <td>${patient.idCard}</td>
                 <td>${patient.address}</td>
                 <td>
-                    <button class="btn-action btn-edit" onclick="editPatient('${patient.id}')">
-                        <i class="fas fa-edit"></i> 编辑
-                    </button>
-                    <button class="btn-action btn-delete" onclick="deletePatient('${patient.id}')">
-                        <i class="fas fa-trash"></i> 删除
-                    </button>
+                    ${actionsHtml}
                 </td>
             </tr>
         `;
@@ -777,6 +1069,10 @@ function filterPatients(query) {
 
 // 编辑病人
 function editPatient(id) {
+    if (!canManagePatients()) {
+        alert('无权限');
+        return;
+    }
     const patient = currentPatients.find(p => p.id === id);
     if (!patient) {
         alert('未找到该病人信息');
@@ -859,9 +1155,13 @@ function editPatient(id) {
 
 // 删除病人
 async function deletePatient(id) {
+    if (!canManagePatients()) {
+        alert('无权限');
+        return;
+    }
     if (confirm('确定要删除这个病人吗？此操作不可恢复。')) {
         try {
-            const response = await fetch(`${API_BASE_URL}/patients/deletePatient?id=${encodeURIComponent(id)}`, {
+            const response = await apiFetch(`${API_BASE_URL}/patients/deletePatient?id=${encodeURIComponent(id)}`, {
                 method: 'DELETE'
             });
 
@@ -898,7 +1198,7 @@ function applyPatientsFilterAndRender(searchQuery) {
 // 加载病种数据
 async function loadDiseases() {
     try {
-        const response = await fetch(`${API_BASE_URL}/diseases/getDiseases`, {
+        const response = await apiFetch(`${API_BASE_URL}/diseases/getDiseases`, {
             method: 'GET'
         });
 
@@ -940,6 +1240,17 @@ function renderDiseasesCards(diseases) {
     let html = '';
 
     diseases.forEach(disease => {
+        const actionsHtml = canManageDiseases()
+            ? `
+                    <button class="btn-action btn-edit" onclick="editDisease('${disease.id}')">
+                        <i class="fas fa-edit"></i> 编辑
+                    </button>
+                    <button class="btn-action btn-delete" onclick="deleteDisease('${disease.id}')">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
+            `
+            : '';
+
         html += `
             <div class="disease-card">
                 <div class="disease-header">
@@ -959,14 +1270,7 @@ function renderDiseasesCards(diseases) {
                         <p>${disease.treatment}</p>
                     </div>
                 </div>
-                <div class="doctor-actions">
-                    <button class="btn-action btn-edit" onclick="editDisease('${disease.id}')">
-                        <i class="fas fa-edit"></i> 编辑
-                    </button>
-                    <button class="btn-action btn-delete" onclick="deleteDisease('${disease.id}')">
-                        <i class="fas fa-trash"></i> 删除
-                    </button>
-                </div>
+                ${actionsHtml ? `<div class="doctor-actions">${actionsHtml}</div>` : ''}
             </div>
         `;
     });
@@ -976,6 +1280,10 @@ function renderDiseasesCards(diseases) {
 
 // 编辑病种
 function editDisease(id) {
+    if (!canManageDiseases()) {
+        alert('无权限');
+        return;
+    }
     const disease = currentDiseases.find(d => d.id === id);
     if (!disease) {
         alert('未找到该病种信息');
@@ -1041,9 +1349,13 @@ function editDisease(id) {
 
 // 删除病种
 async function deleteDisease(id) {
+    if (!canManageDiseases()) {
+        alert('无权限');
+        return;
+    }
     if (confirm('确定要删除这个病种吗？此操作不可恢复。')) {
         try {
-            const response = await fetch(`${API_BASE_URL}/diseases/deleteDisease?id=${encodeURIComponent(id)}`, {
+            const response = await apiFetch(`${API_BASE_URL}/diseases/deleteDisease?id=${encodeURIComponent(id)}`, {
                 method: 'DELETE'
             });
 
@@ -1067,7 +1379,7 @@ async function loadDoctors() {
             await loadDiseases();
         }
 
-        const response = await fetch(`${API_BASE_URL}/doctors/getDoctors`, {
+        const response = await apiFetch(`${API_BASE_URL}/doctors/getDoctors`, {
             method: 'GET'
         });
 
@@ -1120,6 +1432,20 @@ function renderDoctorsCards(doctors) {
             .map((diseaseId) => `<span class="disease-tag">${diseaseNameById[diseaseId] || diseaseId}</span>`)
             .join('');
 
+        const actionsHtml = canManageDoctors()
+            ? `
+                    <button class="btn-action btn-edit" onclick="editDoctor('${doctor.id}')">
+                        <i class="fas fa-edit"></i> 编辑
+                    </button>
+                    <button class="btn-action btn-delete" onclick="deleteDoctor('${doctor.id}')">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
+                    <button class="btn-action btn-assign" onclick="openAssignAccountModal('${doctor.id}')">
+                        <i class="fas fa-user-plus"></i> 分配账号
+                    </button>
+            `
+            : '';
+
         html += `
             <div class="doctor-card">
                 <div class="doctor-header">
@@ -1146,14 +1472,7 @@ function renderDoctorsCards(doctors) {
                         ${diseaseTagsHtml}
                     </div>
                 </div>
-                <div class="doctor-actions">
-                    <button class="btn-action btn-edit" onclick="editDoctor('${doctor.id}')">
-                        <i class="fas fa-edit"></i> 编辑
-                    </button>
-                    <button class="btn-action btn-delete" onclick="deleteDoctor('${doctor.id}')">
-                        <i class="fas fa-trash"></i> 删除
-                    </button>
-                </div>
+                ${actionsHtml ? `<div class="doctor-actions">${actionsHtml}</div>` : ''}
             </div>
         `;
     });
@@ -1161,8 +1480,124 @@ function renderDoctorsCards(doctors) {
     container.innerHTML = html;
 }
 
+function openAssignAccountModal(doctorId) {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
+
+    const id = String(doctorId || '');
+    const doctor = currentDoctors.find((d) => d.id === id);
+    if (!doctor) {
+        alert('未找到该医生信息');
+        return;
+    }
+
+    const modalHtml = `
+        <div class="modal active" id="assign-account-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>分配医生账号</h2>
+                    <button class="btn-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="assign-account-form">
+                        <div class="form-group">
+                            <label>医生</label>
+                            <input type="text" value="${doctor.name ?? ''}（${doctor.department ?? ''}）" disabled>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="assign-username">账号 *</label>
+                                <input type="text" id="assign-username" required autocomplete="username">
+                            </div>
+                            <div class="form-group">
+                                <label for="assign-password">密码 *</label>
+                                <input type="password" id="assign-password" required autocomplete="new-password">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="assign-password-confirm">确认密码 *</label>
+                            <input type="password" id="assign-password-confirm" required autocomplete="new-password">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" id="cancel-assign-account-btn" type="button">取消</button>
+                    <button class="btn-primary" id="save-assign-account-btn" type="button">确认分配</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modal-container').innerHTML = modalHtml;
+    document.querySelector('#assign-account-modal .btn-close').addEventListener('click', closeModal);
+    document.getElementById('cancel-assign-account-btn').addEventListener('click', closeModal);
+    document.getElementById('save-assign-account-btn').addEventListener('click', () => assignDoctorAccount(id));
+}
+
+async function assignDoctorAccount(doctorId) {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
+
+    const usernameInput = document.getElementById('assign-username');
+    const passwordInput = document.getElementById('assign-password');
+    const passwordConfirmInput = document.getElementById('assign-password-confirm');
+    const submitBtn = document.getElementById('save-assign-account-btn');
+
+    const username = (usernameInput?.value ?? '').trim();
+    const password = (passwordInput?.value ?? '').trim();
+    const passwordConfirm = (passwordConfirmInput?.value ?? '').trim();
+
+    if (!username) {
+        alert('请输入账号');
+        return;
+    }
+    if (!password) {
+        alert('请输入密码');
+        return;
+    }
+    if (password !== passwordConfirm) {
+        alert('两次输入的密码不一致');
+        return;
+    }
+
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+        const response = await apiFetch(`${API_BASE_URL}/auth/assignDoctorAccount`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                doctorId: String(doctorId || ''),
+                username,
+                password
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(await getResponseErrorMessage(response, '分配失败'));
+        }
+
+        closeModal();
+        alert('分配成功');
+    } catch (error) {
+        console.error('分配医生账号失败:', error);
+        alert(error?.message || '分配失败，请重试！');
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
 // 编辑医生
 function editDoctor(id) {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
     const doctor = currentDoctors.find(d => d.id === id);
     if (!doctor) {
         alert('未找到该医生信息');
@@ -1175,9 +1610,13 @@ function editDoctor(id) {
 
 // 删除医生
 async function deleteDoctor(id) {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
     if (confirm('确定要删除这个医生吗？此操作不可恢复。')) {
         try {
-            const response = await fetch(`${API_BASE_URL}/doctors/deleteDoctor?id=${encodeURIComponent(id)}`, {
+            const response = await apiFetch(`${API_BASE_URL}/doctors/deleteDoctor?id=${encodeURIComponent(id)}`, {
                 method: 'DELETE'
             });
 
@@ -1196,6 +1635,10 @@ async function deleteDoctor(id) {
 
 // 显示添加医生模态框
 function showAddDoctorModal() {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
     editingDoctorId = null;
     openDoctorModal();
 }
@@ -1288,6 +1731,10 @@ function openDoctorModal(doctor) {
 }
 
 async function saveDoctor() {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
     const selectedDiseaseIds = Array.from(document.querySelectorAll('input[name="doctor-disease"]:checked')).map((el) => el.value);
     if (selectedDiseaseIds.length < 1 || selectedDiseaseIds.length > 3) {
         alert('请选择1-3个病种');
@@ -1317,7 +1764,7 @@ async function saveDoctor() {
             ? `${API_BASE_URL}/doctors/updateDoctor?id=${encodeURIComponent(editingDoctorId)}`
             : `${API_BASE_URL}/doctors/createDoctor`;
 
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method: isEdit ? 'PUT' : 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1349,7 +1796,7 @@ async function loadRegistrations() {
             await loadDoctors();
         }
 
-        const response = await fetch(`${API_BASE_URL}/registrations/getRegistrations`, {
+        const response = await apiFetch(`${API_BASE_URL}/registrations/getRegistrations`, {
             method: 'GET'
         });
 
@@ -1431,6 +1878,23 @@ function renderRegistrationsTable(registrations) {
             : (registration.department ? [registration.department] : []);
         const departmentText = departments.join('、');
 
+        const canEdit = canEditRegistration();
+        const canDelete = canDeleteRegistration();
+        const actionsHtml = (canEdit || canDelete)
+            ? `
+                    ${canEdit ? `
+                    <button class="btn-action btn-edit" onclick="editRegistration('${registration.id}')">
+                        <i class="fas fa-edit"></i> 编辑
+                    </button>
+                    ` : ''}
+                    ${canDelete ? `
+                    <button class="btn-action btn-delete" onclick="deleteRegistration('${registration.id}')">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
+                    ` : ''}
+            `
+            : '<span style="color: #94a3b8;">无权限</span>';
+
         html += `
             <tr>
                 <td>${registration.id}</td>
@@ -1440,12 +1904,7 @@ function renderRegistrationsTable(registrations) {
                 <td>${formattedDate} ${registration.timeSlot}</td>
                 <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 <td>
-                    <button class="btn-action btn-edit" onclick="editRegistration('${registration.id}')">
-                        <i class="fas fa-edit"></i> 编辑
-                    </button>
-                    <button class="btn-action btn-delete" onclick="deleteRegistration('${registration.id}')">
-                        <i class="fas fa-trash"></i> 删除
-                    </button>
+                    ${actionsHtml}
                 </td>
             </tr>
         `;
@@ -1456,6 +1915,10 @@ function renderRegistrationsTable(registrations) {
 
 // 编辑挂号
 function editRegistration(id) {
+    if (!canEditRegistration()) {
+        alert('无权限');
+        return;
+    }
     const registration = currentRegistrations.find(r => r.id === id);
     if (!registration) {
         alert('未找到该挂号信息');
@@ -1468,9 +1931,13 @@ function editRegistration(id) {
 
 // 删除挂号
 async function deleteRegistration(id) {
+    if (!canDeleteRegistration()) {
+        alert('无权限');
+        return;
+    }
     if (confirm('确定要删除这个挂号记录吗？此操作不可恢复。')) {
         try {
-            const response = await fetch(`${API_BASE_URL}/registrations/deleteRegistration?id=${encodeURIComponent(id)}`, {
+            const response = await apiFetch(`${API_BASE_URL}/registrations/deleteRegistration?id=${encodeURIComponent(id)}`, {
                 method: 'DELETE'
             });
 
@@ -1489,6 +1956,10 @@ async function deleteRegistration(id) {
 
 // 显示添加挂号模态框
 function showAddRegistrationModal() {
+    if (!canCreateRegistration()) {
+        alert('无权限');
+        return;
+    }
     editingRegistrationId = null;
     openRegistrationModal();
 }
@@ -1501,6 +1972,7 @@ async function openRegistrationModal(registration) {
         await loadDoctors();
     }
 
+    const showStatusSelector = canEditRegistration();
     const patientOptions = currentPatients
         .map((p) => `<option value="${p.id}" ${registration?.patientId === p.id ? 'selected' : ''}>${p.name}</option>`)
         .join('');
@@ -1522,6 +1994,22 @@ async function openRegistrationModal(registration) {
             </label>
         `;
     }).join('');
+
+    const statusFieldHtml = showStatusSelector
+        ? `
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="registration-status">状态</label>
+                                <select id="registration-status">
+                                    <option value="pending" ${registration?.status === 'pending' ? 'selected' : ''}>待处理</option>
+                                    <option value="confirmed" ${registration?.status === 'confirmed' ? 'selected' : ''}>已确认</option>
+                                    <option value="completed" ${registration?.status === 'completed' ? 'selected' : ''}>已完成</option>
+                                    <option value="cancelled" ${registration?.status === 'cancelled' ? 'selected' : ''}>已取消</option>
+                                </select>
+                            </div>
+                        </div>
+        `
+        : '';
 
     const modalHtml = `
         <div class="modal active" id="registration-modal">
@@ -1548,18 +2036,7 @@ async function openRegistrationModal(registration) {
                                 </select>
                             </div>
                         </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="registration-status">状态</label>
-                                <select id="registration-status">
-                                    <option value="pending" ${registration?.status === 'pending' ? 'selected' : ''}>待处理</option>
-                                    <option value="confirmed" ${registration?.status === 'confirmed' ? 'selected' : ''}>已确认</option>
-                                    <option value="completed" ${registration?.status === 'completed' ? 'selected' : ''}>已完成</option>
-                                    <option value="cancelled" ${registration?.status === 'cancelled' ? 'selected' : ''}>已取消</option>
-                                </select>
-                            </div>
-                        </div>
+                        ${statusFieldHtml}
 
                         <div class="form-group">
                             <label>科室（1-n个） *</label>
@@ -1646,11 +2123,24 @@ async function openRegistrationModal(registration) {
 }
 
 async function saveRegistration() {
+    const isEditOperation = !!editingRegistrationId;
+    if (isEditOperation) {
+        if (!canEditRegistration()) {
+            alert('无权限');
+            return;
+        }
+    } else {
+        if (!canCreateRegistration()) {
+            alert('无权限');
+            return;
+        }
+    }
+
     const patientId = document.getElementById('registration-patient').value;
     const doctorId = document.getElementById('registration-doctor').value;
     const departments = Array.from(document.querySelectorAll('input[name="registration-department"]:checked'))
         .map((el) => el.value);
-    const status = document.getElementById('registration-status').value;
+    let status = document.getElementById('registration-status')?.value ?? '';
     const visitDateInput = document.getElementById('registration-visitDate').value;
     const timeSlot = document.getElementById('registration-timeSlot').value;
     const symptoms = document.getElementById('registration-symptoms').value;
@@ -1678,7 +2168,7 @@ async function saveRegistration() {
         departments,
         visitDate: visitDate.toISOString(),
         timeSlot,
-        status,
+        status: (!isEditOperation && getCurrentRole() === 'patient') ? 'pending' : (status || 'pending'),
         symptoms,
         notes
     };
@@ -1689,7 +2179,7 @@ async function saveRegistration() {
             ? `${API_BASE_URL}/registrations/updateRegistration?id=${encodeURIComponent(editingRegistrationId)}`
             : `${API_BASE_URL}/registrations/createRegistration`;
 
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
             method: isEdit ? 'PUT' : 'POST',
             headers: {
                 'Content-Type': 'application/json'

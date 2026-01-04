@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"hospital-system/auth"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -50,6 +52,13 @@ func SetupRoutes(router *gin.Engine) {
 		registrationGroup.POST("/createRegistration", controllers.CreateRegistration)
 		registrationGroup.PUT("/updateRegistration", controllers.UpdateRegistration)
 		registrationGroup.DELETE("/deleteRegistration", controllers.DeleteRegistration)
+	}
+
+	authGroup := router.Group("/api/auth")
+	{
+		authGroup.POST("/login", controllers.LoginOrRegister)
+		authGroup.GET("/me", auth.GinAuthMiddleware(), controllers.GetMe)
+		authGroup.POST("/assignDoctorAccount", auth.GinAuthMiddleware("admin"), controllers.AssignDoctorAccount)
 	}
 }
 

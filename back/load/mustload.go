@@ -12,8 +12,12 @@ func Load(ctx context.Context) {
 	resource.DiseaseService = services.InitDiseaseService(resource.DiseaseService)
 	resource.DoctorService = services.InitDoctorService(resource.DoctorService)
 	resource.RegistrationService = services.InitRegistrationService(resource.RegistrationService)
+	resource.AccountService = services.InitAccountService(resource.AccountService)
 
 	initStorage(ctx)
+	if resource.AccountService != nil {
+		_ = resource.AccountService.EnsureAccount(ctx, "dreamstartooo", "123456", "admin")
+	}
 }
 
 func initStorage(ctx context.Context) {
@@ -22,6 +26,7 @@ func initStorage(ctx context.Context) {
 	initJSONFile("static/diseases.json", []models.Disease{})
 	initJSONFile("static/doctors.json", []models.Doctor{})
 	initJSONFile("static/registrations.json", []models.Registration{})
+	initJSONFile("static/accounts.json", []models.Account{})
 }
 
 func initJSONFile(filename string, defaultData interface{}) {

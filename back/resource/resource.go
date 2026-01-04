@@ -17,4 +17,5 @@ var (
 	DiseaseService      *services.DiseaseService
 	DoctorService       *services.DoctorService
 	RegistrationService *services.RegistrationService
+	AccountService      *services.AccountService
 )

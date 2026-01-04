@@ -1,1 +1,59 @@
-[]
+[
+  {
+    "id": "09afdab1-a689-4c34-8cc4-f9acbc9a9dce",
+    "name": "梦始",
+    "department": "儿科",
+    "title": "精神斌人",
+    "introduction": "henkun",
+    "photo": "",
+    "diseases": [
+      "3fa50ba3-15cc-4794-a007-6f3b3742ad56"
+    ],
+    "workSchedule": [
+      {
+        "dayOfWeek": "周一",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "isAvailable": true
+      },
+      {
+        "dayOfWeek": "周二",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "isAvailable": true
+      },
+      {
+        "dayOfWeek": "周三",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "isAvailable": true
+      },
+      {
+        "dayOfWeek": "周四",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "isAvailable": true
+      },
+      {
+        "dayOfWeek": "周五",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "isAvailable": true
+      },
+      {
+        "dayOfWeek": "周六",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "isAvailable": false
+      },
+      {
+        "dayOfWeek": "周日",
+        "startTime": "09:00",
+        "endTime": "17:00",
+        "isAvailable": false
+      }
+    ],
+    "maxPatients": 30,
+    "fee": 100
+  }
+]

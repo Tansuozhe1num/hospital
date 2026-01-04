@@ -12,6 +12,18 @@ body {
     line-height: 1.6;
 }
 
+body.auth-unauthenticated .sidebar {
+    display: none;
+}
+
+body.auth-unauthenticated .topbar {
+    display: none;
+}
+
+body.auth-unauthenticated .content-area {
+    padding: 0;
+}
+
 .container {
     display: flex;
     min-height: 100vh;
@@ -88,6 +100,25 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     display: flex;
     align-items: center;
+}
+
+.btn-logout {
+    margin-left: auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: none;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+}
+
+.btn-logout:hover {
+    background-color: rgba(255, 255, 255, 0.14);
 }
 
 .avatar {
@@ -206,6 +237,60 @@ body {
 .page.active {
     display: block;
     animation: fadeIn 0.5s ease;
+}
+
+#login.page.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 480px;
+    background-color: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    padding: 28px;
+}
+
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 22px;
+}
+
+.login-brand i {
+    font-size: 34px;
+    color: #4CAF50;
+}
+
+.login-brand-text h1 {
+    font-size: 20px;
+    margin: 0;
+    color: #2c3e50;
+}
+
+.login-brand-text p {
+    margin-top: 4px;
+    font-size: 14px;
+    color: #64748b;
+}
+
+.login-actions {
+    margin-top: 14px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.login-error {
+    margin-top: 12px;
+    min-height: 20px;
+    font-size: 14px;
+    color: #ef4444;
 }
 
 @keyframes fadeIn {
@@ -606,6 +691,15 @@ body {
 
 .btn-delete:hover {
     background-color: #ffcdd2;
+}
+
+.btn-assign {
+    background-color: #ede9fe;
+    color: #7c3aed;
+}
+
+.btn-assign:hover {
+    background-color: #ddd6fe;
 }
 
 /* 病种卡片样式 */

@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "id": "3fa50ba3-15cc-4794-a007-6f3b3742ad56",
+    "name": "阿尔兹海默症",
+    "description": "比较泥潭",
+    "category": "中医科",
+    "symptoms": "奥尔抽出",
+    "treatment": "不知道"
+  },
+  {
+    "id": "db7c580f-5f11-4d03-90fd-bb6a9e7839bb",
+    "name": "感冒",
+    "description": "小儿科",
+    "category": "儿科",
+    "symptoms": "小",
+    "treatment": "等"
+  },
+  {
+    "id": "b8b4e7ae-3951-4db5-9a47-4bb7b031fba0",
+    "name": "困",
+    "description": "困",
+    "category": "内科",
+    "symptoms": "想睡觉",
+    "treatment": "无治疗手段"
+  }
+]

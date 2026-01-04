@@ -47,9 +47,12 @@
                     <i class="fas fa-user-circle"></i>
                 </div>
                 <div class="user-info">
-                    <h4>管理员</h4>
-                    <p>系统管理员</p>
+                    <h4 id="sidebar-user-name">未登录</h4>
+                    <p id="sidebar-user-role">请先登录</p>
                 </div>
+                <button class="btn-logout" id="logout-btn" title="退出登录" type="button">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
             </div>
         </nav>
 
@@ -74,6 +77,31 @@
 
             <!-- 页面内容 -->
             <div class="content-area">
+                <div id="login" class="page">
+                    <div class="login-card">
+                        <div class="login-brand">
+                            <i class="fas fa-hospital"></i>
+                            <div class="login-brand-text">
+                                <h1>智慧医院挂号系统</h1>
+                                <p>未注册会自动创建病人账号</p>
+                            </div>
+                        </div>
+                        <form id="login-form" class="login-form">
+                            <div class="form-group">
+                                <label for="login-username">账号</label>
+                                <input id="login-username" type="text" autocomplete="username" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="login-password">密码</label>
+                                <input id="login-password" type="password" autocomplete="current-password" required>
+                            </div>
+                            <div class="login-actions">
+                                <button class="btn-primary" id="login-submit" type="submit">登录 / 注册</button>
+                            </div>
+                            <div class="login-error" id="login-error"></div>
+                        </form>
+                    </div>
+                </div>
                 <!-- 首页概览 -->
                 <div id="dashboard" class="page active">
                     <h1 class="page-title">医院挂号系统概览</h1>
