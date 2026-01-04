@@ -5,6 +5,15 @@
     "passwordHash": "$2a$10$cNpf27l/yhuFEa/hLnuq0O./LcUMtyX7938wppPnQI4vH8ktTiqGa",
     "role": "admin",
     "createdAt": "2026-01-04T23:09:23.4502506+08:00",
-    "updatedAt": "2026-01-04T23:30:05.5087208+08:00"
+    "updatedAt": "2026-01-05T00:25:46.7363798+08:00"
+  },
+  {
+    "id": "c058f0a5-97af-4108-b0af-e26d442577cd",
+    "username": "12",
+    "passwordHash": "$2a$10$.PvJAwleHYFpKdCvnjua1OckzLyKxNPWn4xoncbCRWlnfVQrxK1Am",
+    "role": "patient",
+    "linkedId": "2d7ceebd-e558-4bf3-ad54-ba4f3041604f",
+    "createdAt": "2026-01-05T00:22:57.6964327+08:00",
+    "updatedAt": "2026-01-05T00:23:33.8090466+08:00"
   }
 ]

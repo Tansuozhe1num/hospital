@@ -85,6 +85,43 @@ func (s *AccountService) GetByUsername(ctx context.Context, username string) (*m
 	return nil, errors.New("account not found")
 }
 
+func (s *AccountService) SetLinkedID(ctx context.Context, accountID string, linkedID string) (*models.Account, error) {
+	accountID = strings.TrimSpace(accountID)
+	linkedID = strings.TrimSpace(linkedID)
+	if accountID == "" {
+		return nil, errors.New("account id cannot be empty")
+	}
+	if linkedID == "" {
+		return nil, errors.New("linked id cannot be empty")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	accounts, err := s.readAll()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range accounts {
+		if accounts[i].ID != accountID {
+			continue
+		}
+		now := time.Now()
+		accounts[i].LinkedID = linkedID
+		accounts[i].UpdatedAt = now
+		if accounts[i].CreatedAt.IsZero() {
+			accounts[i].CreatedAt = now
+		}
+		if err := s.writeAll(accounts); err != nil {
+			return nil, err
+		}
+		return &accounts[i], nil
+	}
+
+	return nil, errors.New("account not found")
+}
+
 func (s *AccountService) EnsureAccount(ctx context.Context, username string, password string, role string) error {
 	username = normalizeUsername(username)
 	password = strings.TrimSpace(password)

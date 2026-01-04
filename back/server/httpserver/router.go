@@ -20,38 +20,38 @@ func SetupRoutes(router *gin.Engine) {
 	// 患者管理
 	patientGroup := router.Group("/api/patients")
 	{
-		patientGroup.GET("/getPatients", controllers.GetPatients)
-		patientGroup.GET("/getPatient", controllers.GetPatient)
-		patientGroup.POST("/createPatient", controllers.CreatePatient)
-		patientGroup.PUT("/updatePatient", controllers.UpdatePatient)
-		patientGroup.DELETE("/deletePatient", controllers.DeletePatient)
+		patientGroup.GET("/getPatients", auth.GinAuthMiddleware("admin", "doctor"), controllers.GetPatients)
+		patientGroup.GET("/getPatient", auth.GinAuthMiddleware("admin", "doctor"), controllers.GetPatient)
+		patientGroup.POST("/createPatient", auth.GinAuthMiddleware("admin"), controllers.CreatePatient)
+		patientGroup.PUT("/updatePatient", auth.GinAuthMiddleware("admin"), controllers.UpdatePatient)
+		patientGroup.DELETE("/deletePatient", auth.GinAuthMiddleware("admin"), controllers.DeletePatient)
 	}
 
 	diseaseGroup := router.Group("/api/diseases")
 	{
-		diseaseGroup.GET("/getDiseases", controllers.GetDiseases)
-		diseaseGroup.GET("/getDisease", controllers.GetDisease)
-		diseaseGroup.POST("/createDisease", controllers.CreateDisease)
-		diseaseGroup.PUT("/updateDisease", controllers.UpdateDisease)
-		diseaseGroup.DELETE("/deleteDisease", controllers.DeleteDisease)
+		diseaseGroup.GET("/getDiseases", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetDiseases)
+		diseaseGroup.GET("/getDisease", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetDisease)
+		diseaseGroup.POST("/createDisease", auth.GinAuthMiddleware("admin", "doctor"), controllers.CreateDisease)
+		diseaseGroup.PUT("/updateDisease", auth.GinAuthMiddleware("admin", "doctor"), controllers.UpdateDisease)
+		diseaseGroup.DELETE("/deleteDisease", auth.GinAuthMiddleware("admin", "doctor"), controllers.DeleteDisease)
 	}
 
 	doctorGroup := router.Group("/api/doctors")
 	{
-		doctorGroup.GET("/getDoctors", controllers.GetDoctors)
-		doctorGroup.GET("/getDoctor", controllers.GetDoctor)
-		doctorGroup.POST("/createDoctor", controllers.CreateDoctor)
-		doctorGroup.PUT("/updateDoctor", controllers.UpdateDoctor)
-		doctorGroup.DELETE("/deleteDoctor", controllers.DeleteDoctor)
+		doctorGroup.GET("/getDoctors", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetDoctors)
+		doctorGroup.GET("/getDoctor", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetDoctor)
+		doctorGroup.POST("/createDoctor", auth.GinAuthMiddleware("admin"), controllers.CreateDoctor)
+		doctorGroup.PUT("/updateDoctor", auth.GinAuthMiddleware("admin"), controllers.UpdateDoctor)
+		doctorGroup.DELETE("/deleteDoctor", auth.GinAuthMiddleware("admin"), controllers.DeleteDoctor)
 	}
 
 	registrationGroup := router.Group("/api/registrations")
 	{
-		registrationGroup.GET("/getRegistrations", controllers.GetRegistrations)
-		registrationGroup.GET("/getRegistration", controllers.GetRegistration)
-		registrationGroup.POST("/createRegistration", controllers.CreateRegistration)
-		registrationGroup.PUT("/updateRegistration", controllers.UpdateRegistration)
-		registrationGroup.DELETE("/deleteRegistration", controllers.DeleteRegistration)
+		registrationGroup.GET("/getRegistrations", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetRegistrations)
+		registrationGroup.GET("/getRegistration", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetRegistration)
+		registrationGroup.POST("/createRegistration", auth.GinAuthMiddleware("admin", "patient"), controllers.CreateRegistration)
+		registrationGroup.PUT("/updateRegistration", auth.GinAuthMiddleware("admin", "doctor"), controllers.UpdateRegistration)
+		registrationGroup.DELETE("/deleteRegistration", auth.GinAuthMiddleware("admin"), controllers.DeleteRegistration)
 	}
 
 	authGroup := router.Group("/api/auth")
@@ -59,6 +59,7 @@ func SetupRoutes(router *gin.Engine) {
 		authGroup.POST("/login", controllers.LoginOrRegister)
 		authGroup.GET("/me", auth.GinAuthMiddleware(), controllers.GetMe)
 		authGroup.POST("/assignDoctorAccount", auth.GinAuthMiddleware("admin"), controllers.AssignDoctorAccount)
+		authGroup.POST("/upsertMyPatientProfile", auth.GinAuthMiddleware("patient"), controllers.UpsertMyPatientProfile)
 	}
 }
 

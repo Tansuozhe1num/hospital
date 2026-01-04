@@ -23,7 +23,7 @@ func main() {
 	log.Println("医院挂号系统后端服务启动")
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "8083"
 	}
 
 	if err := router.Run(":" + port); err != nil {

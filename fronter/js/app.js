@@ -203,7 +203,7 @@ function applyRoleUI() {
     });
 
     setElementVisible('add-patient-btn', role === 'admin');
-    setElementVisible('add-disease-btn', role === 'admin');
+    setElementVisible('add-disease-btn', role === 'admin' || role === 'doctor');
     setElementVisible('add-doctor-btn', role === 'admin');
     setElementVisible('add-registration-btn', role === 'admin' || role === 'patient');
 }
@@ -254,7 +254,8 @@ function canManagePatients() {
 }
 
 function canManageDiseases() {
-    return getCurrentRole() === 'admin';
+    const role = getCurrentRole();
+    return role === 'admin' || role === 'doctor';
 }
 
 function canManageDoctors() {
@@ -1789,8 +1790,13 @@ async function saveDoctor() {
 // 加载挂号数据
 async function loadRegistrations() {
     try {
-        if (!currentPatients.length) {
-            await loadPatients();
+        const role = getCurrentRole();
+        if (role === 'admin' || role === 'doctor') {
+            if (!currentPatients.length) {
+                await loadPatients();
+            }
+        } else {
+            currentPatients = [];
         }
         if (!currentDoctors.length) {
             await loadDoctors();
@@ -1856,6 +1862,12 @@ function renderRegistrationsTable(registrations) {
     }
 
     const patientNames = Object.fromEntries(currentPatients.map(p => [p.id, p.name]));
+    if (getCurrentRole() === 'patient') {
+        const linkedId = currentSession.me?.linkedId;
+        if (linkedId) {
+            patientNames[linkedId] = '本人';
+        }
+    }
     const doctorNames = Object.fromEntries(currentDoctors.map(d => [d.id, d.name]));
 
     let html = '';
@@ -1960,19 +1972,154 @@ function showAddRegistrationModal() {
         alert('无权限');
         return;
     }
+    if (getCurrentRole() === 'patient' && !currentSession.me?.linkedId) {
+        openMyPatientProfileModal().then(async (ok) => {
+            if (!ok) return;
+            const me = await fetchMe();
+            if (me) {
+                currentSession.me = me;
+                updateUserProfileUI();
+            }
+            editingRegistrationId = null;
+            openRegistrationModal();
+        });
+        return;
+    }
     editingRegistrationId = null;
     openRegistrationModal();
 }
 
+function openMyPatientProfileModal() {
+    return new Promise((resolve) => {
+        const modalHtml = `
+            <div class="modal active" id="my-patient-profile-modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>完善个人信息</h2>
+                        <button class="btn-close">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="my-patient-profile-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="my-patient-name">姓名 *</label>
+                                    <input type="text" id="my-patient-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="my-patient-gender">性别 *</label>
+                                    <select id="my-patient-gender" required>
+                                        <option value="">请选择</option>
+                                        <option value="男">男</option>
+                                        <option value="女">女</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="my-patient-age">年龄 *</label>
+                                    <input type="number" id="my-patient-age" min="1" max="150" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="my-patient-phone">电话 *</label>
+                                    <input type="text" id="my-patient-phone" required placeholder="11位手机号">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="my-patient-idcard">身份证号 *</label>
+                                <input type="text" id="my-patient-idcard" required placeholder="18位身份证号">
+                            </div>
+                            <div class="form-group">
+                                <label for="my-patient-address">地址 *</label>
+                                <input type="text" id="my-patient-address" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="my-patient-emergency-contact">紧急联系人 *</label>
+                                    <input type="text" id="my-patient-emergency-contact" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="my-patient-emergency-phone">紧急联系电话</label>
+                                    <input type="text" id="my-patient-emergency-phone" placeholder="11位手机号">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-secondary" id="cancel-my-patient-profile-btn" type="button">取消</button>
+                        <button class="btn-primary" id="save-my-patient-profile-btn" type="button">保存</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const finish = (ok) => {
+            closeModal();
+            resolve(ok);
+        };
+
+        document.getElementById('modal-container').innerHTML = modalHtml;
+        document.querySelector('#my-patient-profile-modal .btn-close').addEventListener('click', () => finish(false));
+        document.getElementById('cancel-my-patient-profile-btn').addEventListener('click', () => finish(false));
+        document.getElementById('save-my-patient-profile-btn').addEventListener('click', async () => {
+            const submitBtn = document.getElementById('save-my-patient-profile-btn');
+            const patient = {
+                name: document.getElementById('my-patient-name').value,
+                gender: document.getElementById('my-patient-gender').value,
+                age: parseInt(document.getElementById('my-patient-age').value),
+                phone: document.getElementById('my-patient-phone').value,
+                idCard: document.getElementById('my-patient-idcard').value,
+                address: document.getElementById('my-patient-address').value,
+                emergencyContact: document.getElementById('my-patient-emergency-contact').value,
+                emergencyPhone: document.getElementById('my-patient-emergency-phone').value
+            };
+
+            const validationError = validatePatient(patient);
+            if (validationError) {
+                alert(validationError);
+                return;
+            }
+
+            if (submitBtn) submitBtn.disabled = true;
+            try {
+                const response = await apiFetch(`${API_BASE_URL}/auth/upsertMyPatientProfile`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(patient)
+                });
+
+                if (!response.ok) {
+                    throw new Error(await getResponseErrorMessage(response, '保存失败'));
+                }
+
+                finish(true);
+            } catch (error) {
+                console.error('保存个人信息失败:', error);
+                alert(error?.message || '保存失败，请重试！');
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+    });
+}
+
 async function openRegistrationModal(registration) {
-    if (!currentPatients.length) {
-        await loadPatients();
+    const role = getCurrentRole();
+    if (role === 'admin' || role === 'doctor') {
+        if (!currentPatients.length) {
+            await loadPatients();
+        }
+    } else {
+        currentPatients = [];
     }
     if (!currentDoctors.length) {
         await loadDoctors();
     }
 
     const showStatusSelector = canEditRegistration();
+    const isDoctorEdit = role === 'doctor' && !!registration;
+    const isPatientCreate = role === 'patient' && !registration;
     const patientOptions = currentPatients
         .map((p) => `<option value="${p.id}" ${registration?.patientId === p.id ? 'selected' : ''}>${p.name}</option>`)
         .join('');
@@ -1987,9 +2134,10 @@ async function openRegistrationModal(registration) {
         : (registration?.department ? [registration.department] : []);
     const departmentsHtml = DEPARTMENTS.map((dept) => {
         const checked = selectedDepartments.includes(dept) ? 'checked' : '';
+        const disabled = isDoctorEdit ? 'disabled' : '';
         return `
             <label style="display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; margin-bottom: 8px;">
-                <input type="checkbox" name="registration-department" value="${dept}" ${checked}>
+                <input type="checkbox" name="registration-department" value="${dept}" ${checked} ${disabled}>
                 <span>${dept}</span>
             </label>
         `;
@@ -2011,26 +2159,40 @@ async function openRegistrationModal(registration) {
         `
         : '';
 
+    const patientFieldHtml = isPatientCreate
+        ? `
+                            <div class="form-group">
+                                <label>病人 *</label>
+                                <input type="text" value="本人" disabled>
+                            </div>
+        `
+        : `
+                            <div class="form-group">
+                                <label for="registration-patient">病人 *</label>
+                                <select id="registration-patient" required ${isDoctorEdit ? 'disabled' : ''}>
+                                    <option value="">请选择</option>
+                                    ${patientOptions}
+                                </select>
+                            </div>
+        `;
+
+    const doctorDisabled = isDoctorEdit ? 'disabled' : '';
+    const modalTitle = isPatientCreate ? '提交病症' : (registration ? '编辑挂号' : '新增挂号');
+
     const modalHtml = `
         <div class="modal active" id="registration-modal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>${registration ? '编辑挂号' : '新增挂号'}</h2>
+                    <h2>${modalTitle}</h2>
                     <button class="btn-close">&times;</button>
                 </div>
                 <div class="modal-body">
                     <form id="registration-form">
                         <div class="form-row">
-                            <div class="form-group">
-                                <label for="registration-patient">病人 *</label>
-                                <select id="registration-patient" required>
-                                    <option value="">请选择</option>
-                                    ${patientOptions}
-                                </select>
-                            </div>
+                            ${patientFieldHtml}
                             <div class="form-group">
                                 <label for="registration-doctor">医生 *</label>
-                                <select id="registration-doctor" required>
+                                <select id="registration-doctor" required ${doctorDisabled}>
                                     <option value="">请选择</option>
                                     ${doctorOptions}
                                 </select>
@@ -2048,17 +2210,17 @@ async function openRegistrationModal(registration) {
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="registration-visitDate">就诊日期 *</label>
-                                <input type="date" id="registration-visitDate" required value="${visitDateValue}">
+                                <input type="date" id="registration-visitDate" required value="${visitDateValue}" ${isDoctorEdit ? 'disabled' : ''}>
                             </div>
                             <div class="form-group">
                                 <label for="registration-timeSlot">时间段 *</label>
-                                <input type="text" id="registration-timeSlot" required placeholder="例如 09:00-09:30" value="${registration?.timeSlot ?? ''}">
+                                <input type="text" id="registration-timeSlot" required placeholder="例如 09:00-09:30" value="${registration?.timeSlot ?? ''}" ${isDoctorEdit ? 'disabled' : ''}>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label for="registration-symptoms">症状</label>
-                            <textarea id="registration-symptoms" rows="2">${registration?.symptoms ?? ''}</textarea>
+                            <textarea id="registration-symptoms" rows="2" ${isDoctorEdit ? 'readonly' : ''}>${registration?.symptoms ?? ''}</textarea>
                         </div>
 
                         <div class="form-group">
@@ -2136,7 +2298,10 @@ async function saveRegistration() {
         }
     }
 
-    const patientId = document.getElementById('registration-patient').value;
+    const role = getCurrentRole();
+    const patientId = (role === 'patient' && !isEditOperation)
+        ? (currentSession.me?.linkedId || '')
+        : (document.getElementById('registration-patient')?.value || '');
     const doctorId = document.getElementById('registration-doctor').value;
     const departments = Array.from(document.querySelectorAll('input[name="registration-department"]:checked'))
         .map((el) => el.value);
@@ -2154,6 +2319,12 @@ async function saveRegistration() {
         alert('请选择至少1个科室！');
         return;
     }
+    if (role === 'patient' && !isEditOperation) {
+        if (!String(symptoms || '').trim()) {
+            alert('请填写症状描述');
+            return;
+        }
+    }
 
     const visitDate = new Date(`${visitDateInput}T00:00:00`);
     if (Number.isNaN(visitDate.getTime())) {
@@ -2168,7 +2339,7 @@ async function saveRegistration() {
         departments,
         visitDate: visitDate.toISOString(),
         timeSlot,
-        status: (!isEditOperation && getCurrentRole() === 'patient') ? 'pending' : (status || 'pending'),
+        status: (!isEditOperation && role === 'patient') ? 'pending' : (status || 'pending'),
         symptoms,
         notes
     };
