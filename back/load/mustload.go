@@ -13,6 +13,7 @@ func Load(ctx context.Context) {
 	resource.DoctorService = services.InitDoctorService(resource.DoctorService)
 	resource.RegistrationService = services.InitRegistrationService(resource.RegistrationService)
 	resource.AccountService = services.InitAccountService(resource.AccountService)
+	resource.DepartmentService = services.InitDepartmentService(resource.DepartmentService)
 
 	initStorage(ctx)
 	if resource.AccountService != nil {
@@ -27,6 +28,7 @@ func initStorage(ctx context.Context) {
 	initJSONFile("static/doctors.json", []models.Doctor{})
 	initJSONFile("static/registrations.json", []models.Registration{})
 	initJSONFile("static/accounts.json", []models.Account{})
+	initJSONFile("static/departments.json", []models.Department{})
 }
 
 func initJSONFile(filename string, defaultData interface{}) {

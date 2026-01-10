@@ -29,6 +29,10 @@
                     <i class="fas fa-disease"></i>
                     <span>病种管理</span>
                 </li>
+                <li class="nav-item" data-page="departments">
+                    <i class="fas fa-building"></i>
+                    <span>科室管理</span>
+                </li>
                 <li class="nav-item" data-page="doctors">
                     <i class="fas fa-user-md"></i>
                     <span>医生管理</span>
@@ -227,6 +231,19 @@
 
                     <div class="cards-container" id="disease-cards">
                         <!-- 病种卡片将通过JavaScript动态加载 -->
+                    </div>
+                </div>
+
+                <!-- 科室管理页面 -->
+                <div id="departments" class="page">
+                    <div class="page-header">
+                        <h1 class="page-title">科室管理</h1>
+                        <button class="btn-primary" id="add-department-btn">
+                            <i class="fas fa-plus"></i> 新增科室
+                        </button>
+                    </div>
+
+                    <div class="cards-container" id="department-cards">
                     </div>
                 </div>
 

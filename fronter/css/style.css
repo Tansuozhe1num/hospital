@@ -489,7 +489,7 @@ body.auth-unauthenticated .content-area {
 
 /* 按钮样式 */
 .btn-primary {
-    background-color: #4CAF50;
+    background: linear-gradient(135deg, #4CAF50, #2ecc71);
     color: white;
     border: none;
     padding: 12px 24px;
@@ -499,11 +499,13 @@ body.auth-unauthenticated .content-area {
     cursor: pointer;
     display: flex;
     align-items: center;
-    transition: background-color 0.3s ease;
+    box-shadow: 0 6px 14px rgba(76, 175, 80, 0.25);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease, transform 0.1s ease;
 }
 
 .btn-primary:hover {
-    background-color: #3d8b40;
+    background: linear-gradient(135deg, #43a047, #27ae60);
+    box-shadow: 0 10px 20px rgba(76, 175, 80, 0.35);
 }
 
 .btn-primary i {
@@ -562,6 +564,9 @@ body.auth-unauthenticated .content-area {
     font-weight: 600;
     color: #2c3e50;
     border-bottom: 2px solid #eee;
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
 .data-table td {
@@ -573,10 +578,14 @@ body.auth-unauthenticated .content-area {
     background-color: #f9f9f9;
 }
 
+.data-table tbody tr:nth-child(even) {
+    background-color: #fbfbfb;
+}
+
 /* 卡片容器样式 */
 .cards-container {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 25px;
 }
 
@@ -807,6 +816,7 @@ body.auth-unauthenticated .content-area {
     z-index: 1000;
     align-items: center;
     justify-content: center;
+    backdrop-filter: blur(6px);
 }
 
 .modal.active {
@@ -816,7 +826,7 @@ body.auth-unauthenticated .content-area {
 
 .modal-content {
     background-color: white;
-    border-radius: 12px;
+    border-radius: 16px;
     width: 90%;
     max-width: 700px;
     max-height: 90vh;
@@ -908,18 +918,20 @@ body.auth-unauthenticated .content-area {
 }
 
 .btn-secondary {
-    background-color: #6c757d;
+    background: linear-gradient(135deg, #6c757d, #5a6268);
     color: white;
     border: none;
     padding: 12px 24px;
     border-radius: 6px;
     font-size: 16px;
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    box-shadow: 0 6px 14px rgba(90, 98, 104, 0.25);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .btn-secondary:hover {
-    background-color: #5a6268;
+    background: linear-gradient(135deg, #5a6268, #4f565b);
+    box-shadow: 0 10px 20px rgba(90, 98, 104, 0.35);
 }
 
 /* 响应式设计 */

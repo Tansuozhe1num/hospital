@@ -10,6 +10,7 @@ var (
 	Doctors       = []models.Doctor{}
 	Registrations = []models.Registration{}
 	Diseases      = []models.Disease{}
+	Departments   = []models.Department{}
 )
 
 var (
@@ -18,4 +19,5 @@ var (
 	DoctorService       *services.DoctorService
 	RegistrationService *services.RegistrationService
 	AccountService      *services.AccountService
+	DepartmentService   *services.DepartmentService
 )

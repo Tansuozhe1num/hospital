@@ -40,6 +40,11 @@ func CreateDoctor(ctx *gin.Context) {
 		return
 	}
 
+	if err := validateDoctorDepartment(ctx, doctor.Department); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	if err := validateDoctorDiseases(ctx, doctor.Diseases); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -61,6 +66,11 @@ func UpdateDoctor(ctx *gin.Context) {
 
 	var doctor models.Doctor
 	if err := ctx.ShouldBindJSON(&doctor); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := validateDoctorDepartment(ctx, doctor.Department); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -114,4 +124,20 @@ func validateDoctorDiseases(ctx *gin.Context, diseaseIDs []string) error {
 	}
 
 	return nil
+}
+
+func validateDoctorDepartment(ctx *gin.Context, deptName string) error {
+	if deptName == "" {
+		return errors.New("department cannot be empty")
+	}
+	departments, err := resource.DepartmentService.GetAll(ctx)
+	if err != nil {
+		return err
+	}
+	for _, d := range departments {
+		if d.Name == deptName {
+			return nil
+		}
+	}
+	return errors.New("department not found: " + deptName)
 }

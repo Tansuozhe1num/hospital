@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 // API基础URL
 const API_BASE_URL = '/api';
-const DEPARTMENTS = ['内科', '外科', '儿科', '妇产科', '眼科', '耳鼻喉科', '口腔科', '皮肤科', '中医科', '其他'];
 const ID_CARD_REGEX = /^[1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9xX]$/;
 const AUTH_TOKEN_STORAGE_KEY = 'hospital-auth-token';
 
@@ -19,6 +18,7 @@ let currentPatients = [];
 let currentDiseases = [];
 let currentDoctors = [];
 let currentRegistrations = [];
+let currentDepartments = [];
 
 let currentSession = {
     token: '',
@@ -29,6 +29,7 @@ let editingPatientId = null;
 let editingDiseaseId = null;
 let editingDoctorId = null;
 let editingRegistrationId = null;
+let editingDepartmentId = null;
 
 let registrationsChartInstance = null;
 let departmentsChartInstance = null;
@@ -204,6 +205,7 @@ function applyRoleUI() {
 
     setElementVisible('add-patient-btn', role === 'admin');
     setElementVisible('add-disease-btn', role === 'admin' || role === 'doctor');
+    setElementVisible('add-department-btn', role === 'admin');
     setElementVisible('add-doctor-btn', role === 'admin');
     setElementVisible('add-registration-btn', role === 'admin' || role === 'patient');
 }
@@ -234,7 +236,7 @@ function getCurrentRole() {
 function getAllowedPagesForRole(role) {
     switch (role) {
         case 'admin':
-            return ['dashboard', 'patients', 'diseases', 'doctors', 'registrations', 'reports'];
+            return ['dashboard', 'patients', 'diseases', 'departments', 'doctors', 'registrations', 'reports'];
         case 'doctor':
             return ['diseases', 'registrations'];
         case 'patient':
@@ -395,6 +397,9 @@ function loadPageData(pageId) {
             break;
         case 'diseases':
             loadDiseases();
+            break;
+        case 'departments':
+            loadDepartments();
             break;
         case 'doctors':
             loadDoctors();
@@ -641,9 +646,9 @@ function searchInPage(page, query) {
 
 // 初始化模态框
 function initModals() {
-    // 绑定添加按钮事件
     document.getElementById('add-patient-btn')?.addEventListener('click', showAddPatientModal);
     document.getElementById('add-disease-btn')?.addEventListener('click', showAddDiseaseModal);
+    document.getElementById('add-department-btn')?.addEventListener('click', showAddDepartmentModal);
     document.getElementById('add-doctor-btn')?.addEventListener('click', showAddDoctorModal);
     document.getElementById('add-registration-btn')?.addEventListener('click', showAddRegistrationModal);
 }
@@ -729,12 +734,21 @@ function showAddPatientModal() {
 }
 
 // 显示添加病种模态框
-function showAddDiseaseModal() {
+async function showAddDiseaseModal() {
     if (!canManageDiseases()) {
         alert('无权限');
         return;
     }
     editingDiseaseId = null;
+    if (!currentDepartments.length) {
+        await loadDepartments();
+    }
+    const deptOptions = [''].concat(currentDepartments.map((d) => d.name));
+    const deptOptionsHtml = deptOptions.map((name) => {
+        const v = name || '';
+        const label = name ? name : '请选择';
+        return `<option value="${v}">${label}</option>`;
+    }).join('');
     const modalHtml = `
         <div class="modal active" id="add-disease-modal">
             <div class="modal-content">
@@ -752,16 +766,7 @@ function showAddDiseaseModal() {
                         <div class="form-group">
                             <label for="disease-category">分类 *</label>
                             <select id="disease-category" required>
-                                <option value="">请选择</option>
-                                <option value="内科">内科</option>
-                                <option value="外科">外科</option>
-                                <option value="儿科">儿科</option>
-                                <option value="妇产科">妇产科</option>
-                                <option value="眼科">眼科</option>
-                                <option value="耳鼻喉科">耳鼻喉科</option>
-                                <option value="口腔科">口腔科</option>
-                                <option value="皮肤科">皮肤科</option>
-                                <option value="中医科">中医科</option>
+                                ${deptOptionsHtml}
                             </select>
                         </div>
                         
@@ -1199,6 +1204,9 @@ function applyPatientsFilterAndRender(searchQuery) {
 // 加载病种数据
 async function loadDiseases() {
     try {
+        if (!currentDepartments.length) {
+            await loadDepartments();
+        }
         const response = await apiFetch(`${API_BASE_URL}/diseases/getDiseases`, {
             method: 'GET'
         });
@@ -1279,8 +1287,190 @@ function renderDiseasesCards(diseases) {
     container.innerHTML = html;
 }
 
+async function loadDepartments() {
+    try {
+        const response = await apiFetch(`${API_BASE_URL}/departments/getDepartments`, {
+            method: 'GET'
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '加载失败');
+        }
+        const departments = await response.json();
+        currentDepartments = Array.isArray(departments) ? departments : [];
+        const container = document.getElementById('department-cards');
+        if (container) {
+            renderDepartmentsCards(currentDepartments);
+        }
+    } catch (error) {
+        console.error('加载科室数据失败:', error);
+        const container = document.getElementById('department-cards');
+        if (container) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 50px; width: 100%;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ff9800; margin-bottom: 20px;"></i>
+                    <p>加载数据失败，请刷新页面重试</p>
+                </div>
+            `;
+        }
+    }
+}
+
+function renderDepartmentsCards(departments) {
+    const container = document.getElementById('department-cards');
+    if (!container) return;
+    if (!departments.length) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 50px; width: 100%;">
+                <i class="fas fa-building" style="font-size: 48px; color: #ccc; margin-bottom: 20px;"></i>
+                <p>暂无科室数据</p>
+            </div>
+        `;
+        return;
+    }
+    let html = '';
+    departments.forEach((d) => {
+        const actionsHtml = canManageDoctors()
+            ? `
+                    <button class="btn-action btn-edit" onclick="editDepartment('${d.id}')">
+                        <i class="fas fa-edit"></i> 编辑
+                    </button>
+                    <button class="btn-action btn-delete" onclick="deleteDepartment('${d.id}')">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
+            `
+            : '';
+        html += `
+            <div class="disease-card">
+                <div class="disease-header">
+                    <h3>${d.name}</h3>
+                </div>
+                <div class="disease-body">
+                    <p class="disease-description">${d.description || ''}</p>
+                </div>
+                ${actionsHtml ? `<div class="doctor-actions">${actionsHtml}</div>` : ''}
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+async function showAddDepartmentModal() {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
+    editingDepartmentId = null;
+    openDepartmentModal();
+}
+
+function openDepartmentModal(department) {
+    const modalHtml = `
+        <div class="modal active" id="department-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>${department ? '编辑科室' : '新增科室'}</h2>
+                    <button class="btn-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="department-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="department-name">科室名称 *</label>
+                                <input type="text" id="department-name" required value="${department?.name ?? ''}">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="department-description">描述</label>
+                            <textarea id="department-description" rows="3">${department?.description ?? ''}</textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-secondary" id="cancel-department-btn">取消</button>
+                    <button class="btn-primary" id="save-department-btn">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.getElementById('modal-container').innerHTML = modalHtml;
+    document.querySelector('#department-modal .btn-close').addEventListener('click', closeModal);
+    document.getElementById('cancel-department-btn').addEventListener('click', closeModal);
+    document.getElementById('save-department-btn').addEventListener('click', saveDepartment);
+}
+
+async function saveDepartment() {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
+    const name = (document.getElementById('department-name')?.value || '').trim();
+    const description = document.getElementById('department-description')?.value || '';
+    if (!name) {
+        alert('请填写科室名称');
+        return;
+    }
+    const payload = { name, description };
+    try {
+        const isEdit = !!editingDepartmentId;
+        const url = isEdit
+            ? `${API_BASE_URL}/departments/updateDepartment?id=${encodeURIComponent(editingDepartmentId)}`
+            : `${API_BASE_URL}/departments/createDepartment`;
+        const response = await apiFetch(url, {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '保存失败');
+        }
+        closeModal();
+        editingDepartmentId = null;
+        await loadDepartments();
+    } catch (error) {
+        console.error('保存科室失败:', error);
+        alert('保存失败，请重试！');
+    }
+}
+
+async function editDepartment(id) {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
+    const department = currentDepartments.find((d) => d.id === id);
+    if (!department) {
+        alert('未找到该科室信息');
+        return;
+    }
+    editingDepartmentId = id;
+    openDepartmentModal(department);
+}
+
+async function deleteDepartment(id) {
+    if (!canManageDoctors()) {
+        alert('无权限');
+        return;
+    }
+    if (!confirm('确定要删除这个科室吗？此操作不可恢复。')) return;
+    try {
+        const response = await apiFetch(`${API_BASE_URL}/departments/deleteDepartment?id=${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || '删除失败');
+        }
+        await loadDepartments();
+    } catch (error) {
+        console.error('删除科室失败:', error);
+        alert('删除失败，请重试！');
+    }
+}
+
 // 编辑病种
-function editDisease(id) {
+async function editDisease(id) {
     if (!canManageDiseases()) {
         alert('无权限');
         return;
@@ -1293,8 +1483,15 @@ function editDisease(id) {
 
     editingDiseaseId = id;
 
-    const categories = ['内科', '外科', '儿科', '妇产科', '眼科', '耳鼻喉科', '口腔科', '皮肤科', '中医科'];
-    const categoryOptions = categories.map((c) => `<option value="${c}" ${disease.category === c ? 'selected' : ''}>${c}</option>`).join('');
+    if (!currentDepartments.length) {
+        await loadDepartments();
+    }
+    const categoryOptions = [''].concat(currentDepartments.map((d) => d.name))
+        .map((name) => {
+            const label = name ? name : '请选择';
+            const selected = disease.category === name ? 'selected' : '';
+            return `<option value="${name}" ${selected}>${label}</option>`;
+        }).join('');
 
     const modalHtml = `
         <div class="modal active" id="edit-disease-modal">
@@ -1376,6 +1573,9 @@ async function deleteDisease(id) {
 // 加载医生数据
 async function loadDoctors() {
     try {
+        if (!currentDepartments.length) {
+            await loadDepartments();
+        }
         if (!currentDiseases.length) {
             await loadDiseases();
         }
@@ -1594,7 +1794,7 @@ async function assignDoctorAccount(doctorId) {
 }
 
 // 编辑医生
-function editDoctor(id) {
+async function editDoctor(id) {
     if (!canManageDoctors()) {
         alert('无权限');
         return;
@@ -1606,6 +1806,9 @@ function editDoctor(id) {
     }
 
     editingDoctorId = id;
+    if (!currentDepartments.length) {
+        await loadDepartments();
+    }
     openDoctorModal(doctor);
 }
 
@@ -1635,12 +1838,15 @@ async function deleteDoctor(id) {
 }
 
 // 显示添加医生模态框
-function showAddDoctorModal() {
+async function showAddDoctorModal() {
     if (!canManageDoctors()) {
         alert('无权限');
         return;
     }
     editingDoctorId = null;
+    if (!currentDepartments.length) {
+        await loadDepartments();
+    }
     openDoctorModal();
 }
 
@@ -1655,6 +1861,12 @@ function openDoctorModal(doctor) {
         `;
     }).join('');
 
+    const deptOptions = [''].concat(currentDepartments.map((d) => d.name))
+        .map((name) => {
+            const label = name ? name : '请选择';
+            const selected = doctor?.department === name ? 'selected' : '';
+            return `<option value="${name}" ${selected}>${label}</option>`;
+        }).join('');
     const modalHtml = `
         <div class="modal active" id="doctor-modal">
             <div class="modal-content">
@@ -1672,16 +1884,7 @@ function openDoctorModal(doctor) {
                             <div class="form-group">
                                 <label for="doctor-department">科室 *</label>
                                 <select id="doctor-department" required>
-                                    <option value="">请选择</option>
-                                    <option value="内科" ${doctor?.department === '内科' ? 'selected' : ''}>内科</option>
-                                    <option value="外科" ${doctor?.department === '外科' ? 'selected' : ''}>外科</option>
-                                    <option value="儿科" ${doctor?.department === '儿科' ? 'selected' : ''}>儿科</option>
-                                    <option value="妇产科" ${doctor?.department === '妇产科' ? 'selected' : ''}>妇产科</option>
-                                    <option value="眼科" ${doctor?.department === '眼科' ? 'selected' : ''}>眼科</option>
-                                    <option value="耳鼻喉科" ${doctor?.department === '耳鼻喉科' ? 'selected' : ''}>耳鼻喉科</option>
-                                    <option value="口腔科" ${doctor?.department === '口腔科' ? 'selected' : ''}>口腔科</option>
-                                    <option value="皮肤科" ${doctor?.department === '皮肤科' ? 'selected' : ''}>皮肤科</option>
-                                    <option value="中医科" ${doctor?.department === '中医科' ? 'selected' : ''}>中医科</option>
+                                    ${deptOptions}
                                 </select>
                             </div>
                         </div>
@@ -2116,6 +2319,9 @@ async function openRegistrationModal(registration) {
     if (!currentDoctors.length) {
         await loadDoctors();
     }
+    if (!currentDepartments.length) {
+        await loadDepartments();
+    }
 
     const showStatusSelector = canEditRegistration();
     const isDoctorEdit = role === 'doctor' && !!registration;
@@ -2132,7 +2338,8 @@ async function openRegistrationModal(registration) {
     const selectedDepartments = Array.isArray(registration?.departments) && registration.departments.length
         ? registration.departments
         : (registration?.department ? [registration.department] : []);
-    const departmentsHtml = DEPARTMENTS.map((dept) => {
+    const departmentsHtml = currentDepartments.map((d) => {
+        const dept = d.name;
         const checked = selectedDepartments.includes(dept) ? 'checked' : '';
         const disabled = isDoctorEdit ? 'disabled' : '';
         return `
@@ -2378,6 +2585,10 @@ async function loadReports() {
             return;
         }
 
+        if (!currentDepartments.length) {
+            await loadDepartments();
+        }
+
         const indexInfo = await fetchIndexInfo();
         const now = new Date();
 
@@ -2438,12 +2649,17 @@ async function loadReports() {
             deptData.push(otherCount);
         }
         if (deptLabels.length === 0) {
-            DEPARTMENTS.slice(0, 5).forEach((d) => {
-                deptLabels.push(d);
-                deptData.push(0);
+            currentDepartments.slice(0, 5).forEach((d) => {
+                const name = typeof d === 'string' ? d : d?.name;
+                if (name) {
+                    deptLabels.push(name);
+                    deptData.push(0);
+                }
             });
-            deptLabels.push('其他');
-            deptData.push(0);
+            if (deptLabels.length) {
+                deptLabels.push('其他');
+                deptData.push(0);
+            }
         }
 
         initDepartmentChart({

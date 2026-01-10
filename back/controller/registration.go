@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"hospital-system/auth"
 	"hospital-system/models"
 	"hospital-system/resource"
@@ -162,6 +163,11 @@ func CreateRegistration(ctx *gin.Context) {
 		registration.Department = doctor.Department
 	}
 
+	if err := validateDepartmentsExist(ctx, registration.Departments); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	if err := resource.RegistrationService.Create(ctx, &registration); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -256,6 +262,11 @@ func UpdateRegistration(ctx *gin.Context) {
 		registration.Department = doctor.Department
 	}
 
+	if err := validateDepartmentsExist(ctx, registration.Departments); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	if err := resource.RegistrationService.Update(ctx, id, &registration); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -297,4 +308,24 @@ func isAllowedDoctorRegistrationStatusTransition(from string, to string) bool {
 	default:
 		return false
 	}
+}
+
+func validateDepartmentsExist(ctx *gin.Context, deptNames []string) error {
+	if len(deptNames) == 0 {
+		return nil
+	}
+	departments, err := resource.DepartmentService.GetAll(ctx)
+	if err != nil {
+		return err
+	}
+	existing := make(map[string]struct{}, len(departments))
+	for _, d := range departments {
+		existing[d.Name] = struct{}{}
+	}
+	for _, name := range deptNames {
+		if _, ok := existing[strings.TrimSpace(name)]; !ok {
+			return errors.New("department not found: " + name)
+		}
+	}
+	return nil
 }

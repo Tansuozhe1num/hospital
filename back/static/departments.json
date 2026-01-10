@@ -1,0 +1,52 @@
+[
+  {
+    "id": "depts-001",
+    "name": "内科",
+    "description": "常规内科诊疗"
+  },
+  {
+    "id": "depts-002",
+    "name": "外科",
+    "description": "普通外科与外科手术"
+  },
+  {
+    "id": "depts-003",
+    "name": "儿科",
+    "description": "儿童健康与常见病诊疗"
+  },
+  {
+    "id": "depts-004",
+    "name": "妇产科",
+    "description": "妇科与产科综合诊疗"
+  },
+  {
+    "id": "depts-005",
+    "name": "皮肤科",
+    "description": "皮肤病与美容相关诊疗"
+  },
+  {
+    "id": "depts-006",
+    "name": "骨科",
+    "description": "骨骼与关节相关诊疗"
+  },
+  {
+    "id": "depts-007",
+    "name": "眼科",
+    "description": "眼部疾病与视力问题"
+  },
+  {
+    "id": "depts-008",
+    "name": "耳鼻喉科",
+    "description": "耳鼻喉疾病综合诊疗"
+  },
+  {
+    "id": "depts-009",
+    "name": "心血管内科",
+    "description": "心血管相关疾病诊疗"
+  },
+  {
+    "id": "depts-010",
+    "name": "神经内科",
+    "description": "神经系统相关疾病诊疗"
+  }
+]

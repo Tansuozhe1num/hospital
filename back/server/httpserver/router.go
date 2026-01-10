@@ -45,6 +45,15 @@ func SetupRoutes(router *gin.Engine) {
 		doctorGroup.DELETE("/deleteDoctor", auth.GinAuthMiddleware("admin"), controllers.DeleteDoctor)
 	}
 
+	departmentGroup := router.Group("/api/departments")
+	{
+		departmentGroup.GET("/getDepartments", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetDepartments)
+		departmentGroup.GET("/getDepartment", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetDepartment)
+		departmentGroup.POST("/createDepartment", auth.GinAuthMiddleware("admin"), controllers.CreateDepartment)
+		departmentGroup.PUT("/updateDepartment", auth.GinAuthMiddleware("admin"), controllers.UpdateDepartment)
+		departmentGroup.DELETE("/deleteDepartment", auth.GinAuthMiddleware("admin"), controllers.DeleteDepartment)
+	}
+
 	registrationGroup := router.Group("/api/registrations")
 	{
 		registrationGroup.GET("/getRegistrations", auth.GinAuthMiddleware("admin", "doctor", "patient"), controllers.GetRegistrations)
